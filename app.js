@@ -344,34 +344,51 @@ async function handleFormSubmit(e) {
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
     statusMsg.innerText = '';
     
-    const reqData = {
-        requestorEmail: document.getElementById('requestorEmail').value,
-        approverEmail: document.getElementById('approverEmail').value,
-        items: []
-    };
-
-    document.querySelectorAll('.item-block').forEach(block => {
-        reqData.items.push({
-            description: block.querySelector('.item-desc').value,
-            amount: block.querySelector('.item-amt').value,
-            vat: block.querySelector('.item-vat').value,
-            wht: block.querySelector('.item-wht').value,
-            total: block.querySelector('.item-total').value,
-            invoice: block.querySelector('.item-inv').value,
-            branch: block.querySelector('.item-branch').value,
-            department: block.querySelector('.item-dept').value,
-            remarks: block.querySelector('.item-remark').value,
-            paymentMethod: block.querySelector('.item-paymethod').value,
-            bank: block.querySelector('.item-bank').value || "",
-            accName: block.querySelector('.item-accname').value || "",
-            accNo: block.querySelector('.item-accno').value || ""
-        });
-    });
-
     try {
+        const reqData = {
+            requestorEmail: document.getElementById('requestorEmail').value,
+            approverEmail: document.getElementById('approverEmail').value,
+            items: []
+        };
+
+        // เพิ่ม Try...Catch ครอบตอนดึงข้อมูลป้องกัน UI ค้าง
+        document.querySelectorAll('.item-block').forEach((block, index) => {
+            const descEl = block.querySelector('.item-desc');
+            const amtEl = block.querySelector('.item-amt');
+            const vatEl = block.querySelector('.item-vat');
+            const whtEl = block.querySelector('.item-wht');
+            const totalEl = block.querySelector('.item-total');
+            const invEl = block.querySelector('.item-inv');
+            const branchEl = block.querySelector('.item-branch');
+            const deptEl = block.querySelector('.item-dept');
+            const remarkEl = block.querySelector('.item-remark');
+            const payMethodEl = block.querySelector('.item-paymethod');
+            const bankEl = block.querySelector('.item-bank');
+            const accNameEl = block.querySelector('.item-accname');
+            const accNoEl = block.querySelector('.item-accno');
+            
+            if(!descEl) throw new Error("Description field missing in Item #" + (index + 1));
+
+            reqData.items.push({
+                description: descEl.value,
+                amount: amtEl.value,
+                vat: vatEl.value,
+                wht: whtEl.value,
+                total: totalEl.value,
+                invoice: invEl.value,
+                branch: branchEl.value,
+                department: deptEl.value,
+                remarks: remarkEl.value,
+                paymentMethod: payMethodEl.value,
+                bank: bankEl ? bankEl.value : "",
+                accName: accNameEl ? accNameEl.value : "",
+                accNo: accNoEl ? accNoEl.value : ""
+            });
+        });
+
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify({ action: 'submitRequest', data: reqData }),
@@ -392,7 +409,8 @@ async function handleFormSubmit(e) {
             statusMsg.className = 'fw-bold text-danger';
         }
     } catch (error) {
-        statusMsg.innerText = 'Network error. Please try again.';
+        console.error(error);
+        statusMsg.innerText = 'Error: Check if all fields are correct.';
         statusMsg.className = 'fw-bold text-danger';
     } finally {
         btnSubmit.disabled = false;
