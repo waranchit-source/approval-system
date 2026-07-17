@@ -3,48 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Approval System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Approval System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-light-mesh">
+<body>
 
 <div class="container py-5" id="loginContainer">
     <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-md-5">
-            <div class="card glass-card shadow-lg border-0">
-                <div class="card-header modern-gradient text-white p-4 text-center rounded-top-custom">
-                    <h3 class="mb-0 fw-bold"><i class="fa-solid fa-bolt me-2"></i>System Login</h3>
-                </div>
-                <div class="card-body p-5">
-                    <div id="loginAlert" class="alert alert-danger" style="display:none;"></div>
-                    <form id="loginForm">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold text-muted">ID / Username</label>
-                            <input type="text" class="form-control modern-input" id="loginId" required>
-                        </div>
-                        <div class="mb-3 position-relative">
-                            <label class="form-label fw-semibold text-muted">Password</label>
-                            <div class="input-group">
-                                <input type="password" class="form-control modern-input border-end-0" id="loginPass" required>
-                                <span class="input-group-text bg-white border-start-0 modern-input" id="togglePassword" style="cursor: pointer;">
-                                    <i class="fa-regular fa-eye text-muted"></i>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mb-4 form-check">
-                            <input type="checkbox" class="form-check-input" id="rememberMe">
-                            <label class="form-check-label text-muted" for="rememberMe">Remember me</label>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-modern text-white fw-bold py-2" id="btnLogin">Login</button>
-                        </div>
-                    </form>
-                    <div class="text-center mt-4">
-                        <a href="#" id="showRegister" class="text-decoration-none fw-semibold modern-text-gradient">Create new account</a>
+            <div class="glass-panel text-center mb-4">
+                <h1 class="fw-bolder ig-text">Approval<br>System</h1>
+            </div>
+            <div class="glass-panel">
+                <div id="loginAlert" class="alert alert-danger" style="display:none;"></div>
+                <form id="loginForm">
+                    <div class="mb-4">
+                        <label class="form-label text-light fw-semibold">Username</label>
+                        <input type="text" class="form-control neon-input" id="loginId" required>
                     </div>
+                    <div class="mb-4 position-relative">
+                        <label class="form-label text-light fw-semibold">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control neon-input border-end-0" id="loginPass" required>
+                            <span class="input-group-text neon-input bg-transparent border-start-0 text-light" id="togglePassword" style="cursor: pointer;">
+                                <i class="fa-regular fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="mb-4 form-check d-flex align-items-center">
+                        <input type="checkbox" class="form-check-input mt-0 me-2" id="rememberMe">
+                        <label class="form-check-label text-light" for="rememberMe">Remember me</label>
+                    </div>
+                    <button type="submit" class="btn btn-ig w-100 py-3 fw-bold rounded-pill" id="btnLogin">Login</button>
+                </form>
+                <div class="text-center mt-4">
+                    <a href="#" id="showRegister" class="text-light text-decoration-none border-bottom border-light pb-1">Create new account</a>
                 </div>
             </div>
         </div>
@@ -54,206 +50,187 @@
 <div class="container py-5" id="registerContainer" style="display:none;">
     <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-md-6">
-            <div class="card glass-card shadow-lg border-0">
-                <div class="card-header bg-dark text-white p-4 text-center rounded-top-custom">
-                    <h3 class="mb-0 fw-bold">Register Account</h3>
-                </div>
-                <div class="card-body p-5">
-                    <div id="registerAlert" class="alert alert-info" style="display:none;"></div>
-                    <form id="registerForm">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold text-muted">ID / Username</label>
-                                <input type="text" class="form-control modern-input" id="regId" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold text-muted">Password</label>
-                                <input type="password" class="form-control modern-input" id="regPass" required>
-                            </div>
-                            <div class="col-md-12">
-                                <label class="form-label fw-semibold text-muted">First & Last Name</label>
-                                <input type="text" class="form-control modern-input" id="regName" required>
-                            </div>
-                            <div class="col-md-12">
-                                <label class="form-label fw-semibold text-muted">Branch</label>
-                                <select class="form-select modern-input" id="regBranch" required></select>
-                            </div>
-                            <div class="col-md-12 mt-4 d-grid gap-3">
-                                <button type="submit" class="btn btn-dark fw-bold py-2" id="btnRegister">Submit Registration</button>
-                                <button type="button" class="btn btn-light fw-bold py-2 shadow-sm" id="showLogin">Back to Login</button>
-                            </div>
+            <div class="glass-panel">
+                <h3 class="fw-bolder ig-text text-center mb-4">Register</h3>
+                <div id="registerAlert" class="alert alert-info" style="display:none;"></div>
+                <form id="registerForm">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label text-light fw-semibold">Username</label>
+                            <input type="text" class="form-control neon-input" id="regId" required>
                         </div>
-                    </form>
-                </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light fw-semibold">Password</label>
+                            <input type="password" class="form-control neon-input" id="regPass" required>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label text-light fw-semibold">Full Name</label>
+                            <input type="text" class="form-control neon-input" id="regName" required>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label text-light fw-semibold">Branch</label>
+                            <select class="form-select neon-input" id="regBranch" required></select>
+                        </div>
+                        <div class="col-md-12 mt-4">
+                            <button type="submit" class="btn btn-ig w-100 py-3 fw-bold rounded-pill mb-3" id="btnRegister">Sign Up</button>
+                            <button type="button" class="btn btn-outline-light w-100 py-3 fw-bold rounded-pill" id="showLogin">Back to Login</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </div>
 
 <div class="app-layout" id="appContainer" style="display:none;">
-    <div class="sidebar modern-gradient shadow-lg p-3 d-flex flex-column text-white">
-        <div class="sidebar-header text-center mb-5 mt-3">
-            <h4 class="fw-bold m-0"><i class="fa-solid fa-bolt text-warning me-2"></i>Approval</h4>
-            <small id="userRoleBadge" class="badge bg-white text-dark mt-2 px-3 rounded-pill"></small>
+    <aside class="sidebar glass-panel-side">
+        <div class="sidebar-header">
+            <h3 class="fw-bolder ig-text m-0">System</h3>
+            <span id="userRoleBadge" class="badge ig-bg rounded-pill mt-2 px-3 py-2"></span>
         </div>
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white active fw-semibold sidemenu-btn" data-target="formSection">
-                    <i class="fa-solid fa-plus me-2"></i> New Request
+        <ul class="nav flex-column mb-auto side-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active sidemenu-btn" data-target="formSection">
+                    <i class="fa-solid fa-pen-nib"></i> New Request
                 </a>
             </li>
-            <li class="nav-item mb-2">
-                <a href="#" class="nav-link text-white fw-semibold sidemenu-btn" data-target="dashboardSection" id="btnLoadDashboard">
-                    <i class="fa-solid fa-chart-pie me-2"></i> Dashboard
+            <li class="nav-item">
+                <a href="#" class="nav-link sidemenu-btn" data-target="dashboardSection" id="btnLoadDashboard">
+                    <i class="fa-solid fa-layer-group"></i> Dashboard
                 </a>
             </li>
         </ul>
-        <hr class="border-light">
-        <div class="text-center mb-3">
-            <small class="d-block mb-2 text-white-50" id="sidebarUserName"></small>
-            <button class="btn btn-outline-light btn-sm rounded-pill px-4 fw-bold w-100" id="btnLogout"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</button>
+        <div class="sidebar-footer">
+            <p id="sidebarUserName" class="text-light fw-bold mb-3 text-center truncate-text"></p>
+            <button class="btn btn-outline-light rounded-pill w-100 fw-bold" id="btnLogout"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</button>
         </div>
-    </div>
+    </aside>
 
-    <div class="main-content p-4 p-md-5">
-        
+    <main class="main-content">
         <div id="formSection" class="content-section">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="fw-bold modern-text-gradient m-0">Create Request</h2>
-                <span class="badge bg-dark rounded-pill px-3 py-2 shadow-sm" id="autoDate"></span>
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <h2 class="fw-bolder text-light m-0">Create Request</h2>
+                <span class="badge bg-dark rounded-pill px-3 py-2 border border-secondary" id="autoDate"></span>
             </div>
             
-            <div class="card glass-card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4 p-md-5">
-                    <form id="approvalForm">
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Requestor Name</label>
-                                <input type="text" class="form-control modern-input bg-light" id="requestorEmail" readonly>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Send to Approver</label>
-                                <select class="form-select modern-input border-primary shadow-sm" id="approverEmail" required>
-                                    <option value="">Loading...</option>
-                                </select>
-                            </div>
+            <div class="glass-panel">
+                <form id="approvalForm">
+                    <div class="row mb-5 g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary">Requestor Name</label>
+                            <input type="text" class="form-control neon-input bg-dark text-light border-0" id="requestorEmail" readonly>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-light">Send to Approver</label>
+                            <select class="form-select neon-input" id="approverEmail" required>
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                    </div>
 
-                        <hr class="mb-4 opacity-25">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h5 class="fw-bold m-0 text-dark">Request Items</h5>
-                            <button type="button" class="btn btn-sm btn-modern-outline rounded-pill px-3 fw-bold" id="btnAddItem"><i class="fa-solid fa-plus me-1"></i> Add Item</button>
-                        </div>
-                        
-                        <div id="itemsContainer"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bolder text-light m-0">Items Detail</h5>
+                        <button type="button" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm" id="btnAddItem"><i class="fa-solid fa-plus me-2"></i>Add Item</button>
+                    </div>
+                    
+                    <div id="itemsContainer"></div>
 
-                        <div class="d-flex justify-content-between align-items-center border-top pt-4 mt-2">
-                            <div id="statusMessage" class="fw-bold"></div>
-                            <button type="submit" class="btn btn-modern text-white rounded-pill px-5 py-2 fw-bold shadow-lg" id="btnSubmit">Submit Request <i class="fa-solid fa-paper-plane ms-2"></i></button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-4 mt-4">
+                        <div id="statusMessage" class="fw-bold"></div>
+                        <button type="submit" class="btn btn-ig rounded-pill px-5 py-3 fw-bold" id="btnSubmit">Submit Request <i class="fa-solid fa-arrow-right ms-2"></i></button>
+                    </div>
+                </form>
             </div>
         </div>
 
         <div id="dashboardSection" class="content-section" style="display:none;">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="fw-bold modern-text-gradient m-0">Dashboard</h2>
-                <button class="btn btn-light shadow-sm rounded-pill px-3 fw-bold" id="btnRefreshDashboard"><i class="fa-solid fa-rotate-right me-2"></i>Refresh</button>
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <h2 class="fw-bolder text-light m-0">Dashboard</h2>
+                <button class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm" id="btnRefreshDashboard"><i class="fa-solid fa-rotate-right me-2"></i>Refresh</button>
             </div>
-            <div class="card glass-card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light text-muted">
-                                <tr>
-                                    <th class="rounded-start">Req No.</th>
-                                    <th>Date</th>
-                                    <th>Requestor</th>
-                                    <th>Status</th>
-                                    <th class="text-end">Total</th>
-                                    <th class="text-center rounded-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboardTableBody">
-                                <tr><td colspan="6" class="text-center py-4">Loading requests...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+            <div class="glass-panel p-0 overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle m-0 custom-table">
+                        <thead>
+                            <tr>
+                                <th>Req No.</th>
+                                <th>Date</th>
+                                <th>Requestor</th>
+                                <th>Status</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardTableBody">
+                            <tr><td colspan="6" class="text-center py-5 text-secondary">Loading requests...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-
-    </div>
+    </main>
 </div>
 
 <template id="itemTemplate">
-    <div class="item-block card mb-4 border-0 shadow-sm rounded-4 bg-light-mesh">
-        <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold modern-text-gradient m-0"><i class="fa-solid fa-cube me-2"></i>Item #<span class="item-number">1</span></h6>
-                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold btn-remove-item" style="display:none;"><i class="fa-solid fa-trash me-1"></i>Remove</button>
+    <div class="item-block p-4 mb-4 rounded-4 bg-black border border-secondary position-relative">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bolder ig-text m-0">Item #<span class="item-number">1</span></h6>
+            <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold btn-remove-item" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-12">
+                <label class="form-label text-secondary fw-semibold text-sm">Description</label>
+                <input type="text" class="form-control neon-input" required>
             </div>
-            
-            <div class="row g-3">
-                <div class="col-md-12">
-                    <label class="form-label text-muted fw-semibold">Description</label>
-                    <input type="text" class="form-control modern-input" required>
-                </div>
-                
-                <div class="col-md-3">
-                    <label class="form-label text-muted fw-semibold">Amount (Excl. VAT)</label>
-                    <input type="number" step="0.01" class="form-control modern-input item-amt" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted fw-semibold">VAT (7%)</label>
-                    <input type="number" step="0.01" class="form-control modern-input item-vat" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted fw-semibold">Withholding Tax</label>
-                    <input type="number" step="0.01" class="form-control modern-input item-wht" value="0">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label text-dark fw-bold">Total</label>
-                    <input type="number" step="0.01" class="form-control modern-input bg-white fw-bold item-total" readonly>
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label text-muted fw-semibold">Invoice No.</label>
-                    <input type="text" class="form-control modern-input item-inv">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label text-muted fw-semibold">Branch</label>
-                    <select class="form-select modern-input item-branch" required></select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label text-muted fw-semibold">Department</label>
-                    <select class="form-select modern-input item-dept" required></select>
-                </div>
-                
-                <div class="col-md-12">
-                    <label class="form-label text-muted fw-semibold">Remarks</label>
-                    <input type="text" class="form-control modern-input item-remark">
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label text-primary fw-bold">Payment Method</label>
-                    <select class="form-select modern-input border-primary item-paymethod" required></select>
-                </div>
-                <div class="col-md-8">
-                    <div class="row g-2 bank-details-container" style="display:none;">
-                        <div class="col-md-4 bank-col" style="display:none;">
-                            <label class="form-label text-muted fw-semibold">Bank</label>
-                            <select class="form-select modern-input item-bank"></select>
-                        </div>
-                        <div class="col-md-4 accname-col" style="display:none;">
-                            <label class="form-label text-muted fw-semibold">Account Name</label>
-                            <input type="text" class="form-control modern-input item-accname">
-                        </div>
-                        <div class="col-md-4 accno-col" style="display:none;">
-                            <label class="form-label text-muted fw-semibold">Account No.</label>
-                            <input type="text" class="form-control modern-input item-accno">
-                        </div>
+            <div class="col-md-3">
+                <label class="form-label text-secondary fw-semibold text-sm">Amount</label>
+                <input type="number" step="0.01" class="form-control neon-input item-amt" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-secondary fw-semibold text-sm">VAT (7%)</label>
+                <input type="number" step="0.01" class="form-control neon-input item-vat" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-secondary fw-semibold text-sm">WHT</label>
+                <input type="number" step="0.01" class="form-control neon-input item-wht" value="0">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label ig-text fw-bold text-sm">Total</label>
+                <input type="number" step="0.01" class="form-control neon-input bg-dark text-white fw-bold item-total" readonly>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-secondary fw-semibold text-sm">Invoice No.</label>
+                <input type="text" class="form-control neon-input item-inv">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-secondary fw-semibold text-sm">Branch</label>
+                <select class="form-select neon-input item-branch" required></select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-secondary fw-semibold text-sm">Department</label>
+                <select class="form-select neon-input item-dept" required></select>
+            </div>
+            <div class="col-md-12">
+                <label class="form-label text-secondary fw-semibold text-sm">Remarks</label>
+                <input type="text" class="form-control neon-input item-remark">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-light fw-bold text-sm">Payment Method</label>
+                <select class="form-select neon-input border-light item-paymethod" required></select>
+            </div>
+            <div class="col-md-8">
+                <div class="row g-2 bank-details-container" style="display:none;">
+                    <div class="col-md-4 bank-col" style="display:none;">
+                        <label class="form-label text-secondary fw-semibold text-sm">Bank</label>
+                        <select class="form-select neon-input item-bank"></select>
+                    </div>
+                    <div class="col-md-4 accname-col" style="display:none;">
+                        <label class="form-label text-secondary fw-semibold text-sm">Account Name</label>
+                        <input type="text" class="form-control neon-input item-accname">
+                    </div>
+                    <div class="col-md-4 accno-col" style="display:none;">
+                        <label class="form-label text-secondary fw-semibold text-sm">Account No.</label>
+                        <input type="text" class="form-control neon-input item-accno">
                     </div>
                 </div>
             </div>
