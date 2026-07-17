@@ -3,6 +3,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwThYgHO5FSqCsm9pJW
 let globalDropdownData = null;
 let itemCount = 0;
 let currentUser = null;
+let approvalModalInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const autoDateEl = document.getElementById('autoDate');
@@ -44,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnLogout')?.addEventListener('click', handleLogout);
     document.getElementById('btnAddItem')?.addEventListener('click', addNewItem);
     document.getElementById('approvalForm')?.addEventListener('submit', handleFormSubmit);
+    document.getElementById('modalApprovalForm')?.addEventListener('submit', handleModalSubmit);
     
     document.querySelectorAll('.sidemenu-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -55,24 +57,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetId = e.currentTarget.getAttribute('data-target');
             if(document.getElementById(targetId)) {
                 document.getElementById(targetId).style.display = 'block';
+                if(targetId === 'dashboardSection') {
+                    document.querySelector('.page-title').innerText = 'Dashboard';
+                    fetchDashboard();
+                } else {
+                    document.querySelector('.page-title').innerText = 'Create Request';
+                }
             }
-            document.getElementById('sidebarMenu').classList.remove('show');
+            if(window.innerWidth <= 768) {
+                document.getElementById('sidebarMenu').classList.remove('show');
+            }
         });
     });
 
-    document.getElementById('btnLoadDashboard')?.addEventListener('click', fetchDashboard);
     document.getElementById('btnRefreshDashboard')?.addEventListener('click', fetchDashboard);
     
-    ['btnOpenSidebarForm', 'btnOpenSidebarDash'].forEach(id => {
-        document.getElementById(id)?.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('sidebarMenu').classList.add('show');
-        });
+    document.getElementById('btnToggleSidebar')?.addEventListener('click', () => {
+        document.getElementById('sidebarMenu').classList.toggle('collapsed');
     });
-    document.getElementById('btnCloseSidebar')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('sidebarMenu').classList.remove('show');
+    document.getElementById('btnMobileToggle')?.addEventListener('click', () => {
+        document.getElementById('sidebarMenu').classList.add('show');
+        document.getElementById('sidebarMenu').classList.remove('collapsed');
     });
+
+    if(document.getElementById('approvalModal')) {
+        approvalModalInstance = new bootstrap.Modal(document.getElementById('approvalModal'));
+    }
 
     checkLocalSession();
     fetchDropdownData();
@@ -117,7 +127,8 @@ function handleLogout() {
 async function fetchDropdownData() {
     try {
         const response = await fetch(SCRIPT_URL + '?action=getDropdowns');
-        const data = await response.json();
+        const text = await response.text();
+        const data = JSON.parse(text);
         globalDropdownData = data;
         
         const approverSelect = document.getElementById('approverEmail');
@@ -156,11 +167,11 @@ async function handleLogin(e) {
             body: JSON.stringify({ action: 'login', data: { id: id, password: password } }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        const result = JSON.parse(text);
         
         if (result.status === 'success') {
             currentUser = result.user;
-            
             if(rememberMe) {
                 localStorage.setItem('savedApprovalId', id);
                 localStorage.setItem('savedApprovalPass', password);
@@ -176,7 +187,7 @@ async function handleLogin(e) {
             alertBox.style.display = 'block';
         }
     } catch (error) {
-        alertBox.innerText = 'System error. Please try again.';
+        alertBox.innerText = 'System error: Cannot connect to server.';
         alertBox.style.display = 'block';
     } finally {
         btn.disabled = false;
@@ -207,7 +218,8 @@ async function handleRegister(e) {
             }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        const result = JSON.parse(text);
         
         if (result.status === 'success') {
             alertBox.className = 'alert alert-success';
@@ -365,7 +377,8 @@ async function handleFormSubmit(e) {
             body: JSON.stringify({ action: 'submitRequest', data: reqData }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        const result = JSON.parse(text);
         
         if (result.status === 'success') {
             statusMsg.innerText = `Success! Submitted ${result.reqNo}`;
@@ -374,9 +387,12 @@ async function handleFormSubmit(e) {
             document.getElementById('itemsContainer').innerHTML = '';
             document.getElementById('requestorEmail').value = currentUser.name;
             addNewItem();
+        } else {
+            statusMsg.innerText = result.message || 'Error from server.';
+            statusMsg.className = 'fw-bold text-danger';
         }
     } catch (error) {
-        statusMsg.innerText = 'Error submitting request.';
+        statusMsg.innerText = 'Network error. Please try again.';
         statusMsg.className = 'fw-bold text-danger';
     } finally {
         btnSubmit.disabled = false;
@@ -394,7 +410,8 @@ async function fetchDashboard() {
             body: JSON.stringify({ action: 'getRequests', user: currentUser }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        const result = JSON.parse(text);
         
         if (result.status === 'success') {
             window.dashboardData = result.data;
@@ -415,6 +432,11 @@ async function fetchDashboard() {
                     resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
                 }
                 
+                let reviewBtn = '';
+                if (currentUser.role === 'Admin' || (req.status.indexOf('Pending') > -1)) {
+                    reviewBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal('${req.reqNo}')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>`;
+                }
+                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="fw-bold ig-text">${req.reqNo}</td>
@@ -425,6 +447,7 @@ async function fetchDashboard() {
                     <td class="text-center" style="white-space: nowrap;">
                         <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
                         ${resendBtn}
+                        ${reviewBtn}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -446,7 +469,8 @@ async function resendRequest(reqNo, btnEl) {
             body: JSON.stringify({ action: 'resendRequest', reqNo: reqNo }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        const result = JSON.parse(text);
         if (result.status === 'success') {
             alert('Email resent successfully for ' + reqNo);
         } else {
@@ -457,6 +481,89 @@ async function resendRequest(reqNo, btnEl) {
     } finally {
         btnEl.disabled = false;
         btnEl.innerHTML = originalText;
+    }
+}
+
+function openReviewModal(reqNo) {
+    const req = window.dashboardData.find(r => r.reqNo === reqNo);
+    if(!req) return;
+    
+    document.getElementById('modalReqNo').innerText = reqNo;
+    document.getElementById('modalReqNoInput').value = reqNo;
+    document.getElementById('modalAlert').style.display = 'none';
+    
+    const tbody = document.getElementById('modalItemsBody');
+    tbody.innerHTML = '';
+    
+    req.items.forEach((item, index) => {
+        let badge = '';
+        if(item.status === 'Completed') badge = '<span class="badge bg-success ms-2">Approved</span>';
+        if(item.status === 'Rejected') badge = '<span class="badge bg-danger ms-2">Rejected</span>';
+        
+        tbody.innerHTML += `
+            <tr>
+                <td class="text-center fw-bold">${index + 1}</td>
+                <td>
+                    <div class="fw-bold">${item.description} ${badge}</div>
+                    <small class="text-muted">Inv: ${item.invoice || '-'} | Dept: ${item.department}</small>
+                </td>
+                <td class="text-end fw-bold">${parseFloat(item.total).toLocaleString('en-US')}</td>
+                <td class="text-center" style="white-space:nowrap;">
+                    <label class="me-2 text-success"><input type="radio" name="item_${index}" value="Approve" class="form-check-input" required> Approve</label>
+                    <label class="text-danger"><input type="radio" name="item_${index}" value="Reject" class="form-check-input" required> Reject</label>
+                </td>
+            </tr>
+        `;
+    });
+    
+    approvalModalInstance.show();
+}
+
+async function handleModalSubmit(e) {
+    e.preventDefault();
+    const btnSubmit = document.getElementById('btnSubmitReview');
+    const alertBox = document.getElementById('modalAlert');
+    const reqNo = document.getElementById('modalReqNoInput').value;
+    const req = window.dashboardData.find(r => r.reqNo === reqNo);
+    
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+    
+    const selections = [];
+    req.items.forEach((item, index) => {
+        const val = document.querySelector(`input[name="item_${index}"]:checked`).value;
+        selections.push(val);
+    });
+    
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ 
+                action: 'systemPartialApprove', 
+                reqNo: reqNo,
+                approver: currentUser.name,
+                selections: selections
+            }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const text = await response.text();
+        const result = JSON.parse(text);
+        
+        if (result.status === 'success') {
+            approvalModalInstance.hide();
+            fetchDashboard();
+        } else {
+            alertBox.innerText = result.message;
+            alertBox.className = 'text-danger mt-2';
+            alertBox.style.display = 'block';
+        }
+    } catch (error) {
+        alertBox.innerText = 'Network Error.';
+        alertBox.className = 'text-danger mt-2';
+        alertBox.style.display = 'block';
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = 'Submit Selections';
     }
 }
 
@@ -475,13 +582,15 @@ function printRequest(reqNo) {
                     <strong>${item.description}</strong><br>
                     <small style="color: #666;">
                         Inv: ${item.invoice || '-'} | Dept: ${item.department} | Branch: ${item.branch}<br>
-                        Remarks: ${item.remarks || '-'} | Payment: ${item.paymentMethod}
+                        Remarks: ${item.remarks || '-'} | Payment: ${item.paymentMethod}<br>
+                        Bank: ${item.bank || '-'} | A/C Name: ${item.accName || '-'} | A/C No: ${item.accNo || '-'}
                     </small>
                 </td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; color: ${item.status === 'Completed' ? '#28a745' : (item.status === 'Rejected' ? '#dc3545' : '#f09433')}">${item.status}</td>
             </tr>
         `;
     });
@@ -510,7 +619,7 @@ function printRequest(reqNo) {
                     <p style="margin:0;"><strong>Date:</strong> ${date}</p>
                 </div>
                 <div>
-                    <p style="margin:0;"><strong>Status:</strong> <span class="status">${req.status}</span></p>
+                    <p style="margin:0;"><strong>Overall Status:</strong> <span class="status">${req.status}</span></p>
                 </div>
             </div>
             
@@ -522,6 +631,7 @@ function printRequest(reqNo) {
                     <th style="text-align: right;">VAT(7%)</th>
                     <th style="text-align: right;">WHT</th>
                     <th style="text-align: right;">Total</th>
+                    <th style="text-align: center;">Item Status</th>
                 </tr>
                 ${itemsRows}
             </table>
