@@ -617,22 +617,28 @@ function printRequest(reqNo) {
         sumWht += parseFloat(item.wht) || 0;
         sumTotal += parseFloat(item.total) || 0;
         
+        let detailsHtml = `<div style="display: flex; flex-wrap: wrap; gap: 8px; color: #6c757d; font-size: 11px; margin-top: 4px;">`;
+        if (item.invoice) detailsHtml += `<span><span style="color:#adb5bd;">INV:</span> <span style="color:#495057;">${item.invoice}</span></span>`;
+        if (item.department) detailsHtml += `<span><span style="color:#adb5bd;">DEPT:</span> <span style="color:#495057;">${item.department}</span></span>`;
+        if (item.branch) detailsHtml += `<span><span style="color:#adb5bd;">BRANCH:</span> <span style="color:#495057;">${item.branch}</span></span>`;
+        if (item.paymentMethod) detailsHtml += `<span><span style="color:#adb5bd;">PAYMENT:</span> <span style="color:#495057;">${item.paymentMethod}</span></span>`;
+        if (item.bank) detailsHtml += `<span><span style="color:#adb5bd;">BANK:</span> <span style="color:#495057;">${item.bank}</span></span>`;
+        if (item.accNo) detailsHtml += `<span><span style="color:#adb5bd;">A/C NO:</span> <span style="color:#495057;">${item.accNo}</span></span>`;
+        if (item.accName) detailsHtml += `<span><span style="color:#adb5bd;">A/C NAME:</span> <span style="color:#495057;">${item.accName}</span></span>`;
+        if (item.remarks) detailsHtml += `<span style="width: 100%;"><span style="color:#adb5bd;">REMARKS:</span> <span style="color:#495057;">${item.remarks}</span></span>`;
+        detailsHtml += `</div>`;
+
         itemsRows += `
             <tr>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd;">
-                    <strong>${item.description}</strong><br>
-                    <small style="color: #666;">
-                        Inv: ${item.invoice || '-'} | Dept: ${item.department} | Branch: ${item.branch}<br>
-                        Remarks: ${item.remarks || '-'} | Payment: ${item.paymentMethod}<br>
-                        Bank: ${item.bank || '-'} | A/C Name: ${item.accName || '-'} | A/C No: ${item.accNo || '-'}
-                    </small>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057;">${index + 1}</td>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">
+                    <div style="font-weight: 600; font-size: 13px; color: #212529;">${item.description}</div>
+                    ${detailsHtml}
                 </td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; color: ${item.status === 'Completed' ? '#28a745' : '#f09433'}">${item.status}</td>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 600; color: #212529;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             </tr>
         `;
     });
@@ -642,66 +648,75 @@ function printRequest(reqNo) {
         <html><head><title>Print Request ${reqNo}</title>
         <style>
             @media print { body { -webkit-print-color-adjust: exact; } }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 20px; }
-            .details { margin-bottom: 30px; display: flex; justify-content: space-between; }
-            .details div { line-height: 1.8; }
-            .status { font-weight: bold; padding: 5px 12px; border-radius: 20px; color: #fff; background-color: #333; display: inline-block; font-size: 14px;}
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
-            th { background-color: #f4f4f4; border-bottom: 2px solid #000; padding: 12px 8px; text-transform: uppercase; font-size: 12px; }
-            .summary-box { float: right; width: 350px; font-size: 16px; margin-top: 20px; }
-            .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #ccc; }
-            .summary-total { display: flex; justify-content: space-between; padding: 15px 0; font-weight: bold; font-size: 20px; color: #dc3545; border-bottom: 2px solid #000; border-top: 2px solid #000; margin-top: 10px; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #212529; }
+            .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #e9ecef; padding-bottom: 20px; }
+            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+            .details-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; }
+            .details-box p { margin: 0 0 8px 0; font-size: 13px; }
+            .details-box p:last-child { margin: 0; }
+            .status-badge { font-weight: 600; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+            .status-completed { background-color: #d1e7dd; color: #0f5132; }
+            .status-rejected { background-color: #f8d7da; color: #842029; }
+            .status-pending { background-color: #fff3cd; color: #664d03; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 10px; text-transform: uppercase; font-size: 11px; font-weight: 600; }
+            .summary-box { float: right; width: 320px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+            .summary-row { display: flex; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid #e9ecef; font-size: 13px; color: #495057; }
+            .summary-total { display: flex; justify-content: space-between; padding: 15px; font-weight: 700; font-size: 16px; background-color: #f8f9fa; color: #212529; }
+            .total-amount-color { color: #d97706; }
         </style></head><body>
             <div class="header">
-                <h1 style="margin: 0 0 10px 0;">APPROVAL REQUEST</h1>
-                <h2 style="margin: 0; color: #666;">${reqNo}</h2>
-            </div>
-            <div class="details">
                 <div>
-                    <p style="margin:0;"><strong>Requestor:</strong> ${req.requestor}</p>
-                    <p style="margin:0;"><strong>Date:</strong> ${date}</p>
+                    <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #212529;">APPROVAL REQUEST</h1>
+                    <h2 style="margin: 0; color: #6c757d; font-size: 16px; font-weight: 500;">${reqNo}</h2>
                 </div>
-                <div>
-                    <p style="margin:0;"><strong>Overall Status:</strong> <span class="status">${req.status}</span></p>
+            </div>
+            
+            <div class="details-grid">
+                <div class="details-box">
+                    <p><span style="color:#6c757d;">Requestor:</span> <strong>${req.requestor}</strong></p>
+                    <p><span style="color:#6c757d;">Date:</span> <strong>${date}</strong></p>
+                </div>
+                <div class="details-box">
+                    <p><span style="color:#6c757d;">Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : 'status-pending')}">${req.status}</span></p>
+                    <p><span style="color:#6c757d;">Approved By:</span> <strong>${req.approver || '-'}</strong></p>
                 </div>
             </div>
             
             <table>
                 <tr>
-                    <th style="text-align: left;">#</th>
-                    <th style="text-align: left;">Description & Details</th>
-                    <th style="text-align: right;">Amount</th>
-                    <th style="text-align: right;">VAT(7%)</th>
-                    <th style="text-align: right;">WHT</th>
-                    <th style="text-align: right;">Total</th>
-                    <th style="text-align: center;">Item Status</th>
+                    <th style="text-align: left; width: 5%;">#</th>
+                    <th style="text-align: left; width: 55%;">Description</th>
+                    <th style="text-align: right; width: 10%;">Amount</th>
+                    <th style="text-align: right; width: 10%;">VAT(7%)</th>
+                    <th style="text-align: right; width: 10%;">WHT</th>
+                    <th style="text-align: right; width: 10%;">Total</th>
                 </tr>
                 ${itemsRows}
             </table>
             
             <div class="summary-box">
                 <div class="summary-row">
-                    <span>Amount (Excl. VAT):</span>
-                    <span>${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                    <span>Amount (Excl. VAT)</span>
+                    <span style="font-weight: 600;">${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div class="summary-row">
-                    <span>VAT (7%):</span>
-                    <span>${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                    <span>VAT (7%)</span>
+                    <span style="font-weight: 600;">${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div class="summary-row">
-                    <span>Withholding Tax:</span>
-                    <span>${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                    <span>Withholding Tax</span>
+                    <span style="font-weight: 600;">${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div class="summary-total">
-                    <span>GRAND TOTAL:</span>
-                    <span>${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                    <span>Grand Total</span>
+                    <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                 </div>
             </div>
             
             <div style="clear: both;"></div>
             
-            <script>window.onload = function() { window.print(); window.close(); }</script>
+            <script>window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
         </body></html>
     `;
     printWindow.document.write(html);
