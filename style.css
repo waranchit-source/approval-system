@@ -1,23 +1,82 @@
 body {
-    background-color: #f4f6f9;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Poppins', sans-serif;
+    background-color: #f8f9fa;
 }
-.card {
+.bg-light-mesh {
+    background: #f0f2f5;
+}
+.modern-gradient {
+    background: linear-gradient(135deg, #FF3366 0%, #FF9933 100%);
+}
+.modern-text-gradient {
+    background: linear-gradient(135deg, #FF3366 0%, #FF9933 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.btn-modern {
+    background: linear-gradient(135deg, #FF3366 0%, #FF9933 100%);
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(255, 51, 102, 0.3);
+}
+.btn-modern-outline {
+    border: 2px solid #FF3366;
+    color: #FF3366;
+    transition: all 0.2s;
+}
+.btn-modern-outline:hover {
+    background-color: #FF3366;
+    color: white;
+}
+.glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
+.rounded-top-custom {
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+.modern-input {
     border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    padding: 10px 15px;
+    transition: all 0.3s;
+    background-color: #fff;
 }
-.card-header {
-    border-top-left-radius: 10px !important;
-    border-top-right-radius: 10px !important;
+.modern-input:focus {
+    border-color: #FF3366;
+    box-shadow: 0 0 0 0.25rem rgba(255, 51, 102, 0.15);
 }
-.item-block {
-    background-color: #ffffff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+
+.app-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
 }
-.form-label {
-    font-size: 0.85rem;
-    color: #495057;
+.sidebar {
+    width: 260px;
+    transition: all 0.3s;
 }
-.form-control:focus, .form-select:focus {
-    border-color: #343a40;
-    box-shadow: 0 0 0 0.25rem rgba(52, 58, 64, 0.25);
+.nav-pills .nav-link {
+    border-radius: 12px;
+    padding: 12px 20px;
+    opacity: 0.8;
+}
+.nav-pills .nav-link.active, .nav-pills .nav-link:hover {
+    background: rgba(255,255,255,0.2);
+    opacity: 1;
+}
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #f4f6f9;
+}
+
+@media (max-width: 768px) {
+    .app-layout { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; }
+    .main-content { overflow-y: visible; }
 }

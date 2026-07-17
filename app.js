@@ -5,7 +5,7 @@ let itemCount = 0;
 let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('autoDate').innerText = 'Date: ' + new Date().toLocaleDateString('en-GB');
+    document.getElementById('autoDate').innerText = new Date().toLocaleDateString('en-GB');
     
     document.getElementById('showRegister').addEventListener('click', (e) => {
         e.preventDefault();
@@ -18,6 +18,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loginContainer').style.display = 'block';
     });
     
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passInput = document.getElementById('loginPass');
+        const icon = this.querySelector('i');
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            passInput.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    });
+    
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('registerForm').addEventListener('submit', handleRegister);
     document.getElementById('btnLogout').addEventListener('click', handleLogout);
@@ -25,14 +37,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAddItem').addEventListener('click', addNewItem);
     document.getElementById('approvalForm').addEventListener('submit', handleFormSubmit);
     
+    document.querySelectorAll('.sidemenu-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            
+            document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+            document.getElementById(e.currentTarget.dataset.target).style.display = 'block';
+        });
+    });
+
+    document.getElementById('btnLoadDashboard').addEventListener('click', fetchDashboard);
+    document.getElementById('btnRefreshDashboard').addEventListener('click', fetchDashboard);
+    
     checkLocalSession();
     fetchDropdownData();
 });
 
 function checkLocalSession() {
-    const savedUser = localStorage.getItem('approvalAppUser');
-    if (savedUser) {
-        currentUser = JSON.parse(savedUser);
+    const savedUserLocal = localStorage.getItem('approvalAppUser');
+    const savedUserSession = sessionStorage.getItem('approvalAppUser');
+    if (savedUserLocal) {
+        currentUser = JSON.parse(savedUserLocal);
+        showAppScreen();
+    } else if (savedUserSession) {
+        currentUser = JSON.parse(savedUserSession);
         showAppScreen();
     }
 }
@@ -40,14 +70,16 @@ function checkLocalSession() {
 function showAppScreen() {
     document.getElementById('loginContainer').style.display = 'none';
     document.getElementById('registerContainer').style.display = 'none';
-    document.getElementById('appContainer').style.display = 'block';
+    document.getElementById('appContainer').style.display = 'flex';
     
-    document.getElementById('userDisplayInfo').innerText = `Welcome, ${currentUser.name} (${currentUser.branch})`;
+    document.getElementById('sidebarUserName').innerText = currentUser.name;
+    document.getElementById('userRoleBadge').innerText = currentUser.role;
     document.getElementById('requestorEmail').value = currentUser.name;
 }
 
 function handleLogout() {
     localStorage.removeItem('approvalAppUser');
+    sessionStorage.removeItem('approvalAppUser');
     currentUser = null;
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('loginContainer').style.display = 'block';
@@ -84,9 +116,10 @@ async function handleLogin(e) {
     const alertBox = document.getElementById('loginAlert');
     const id = document.getElementById('loginId').value;
     const password = document.getElementById('loginPass').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
     
     btn.disabled = true;
-    btn.innerText = 'Logging in...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Logging in...';
     alertBox.style.display = 'none';
     
     const payload = {
@@ -104,7 +137,11 @@ async function handleLogin(e) {
         
         if (result.status === 'success') {
             currentUser = result.user;
-            localStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
+            if(rememberMe) {
+                localStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
+            } else {
+                sessionStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
+            }
             showAppScreen();
         } else {
             alertBox.innerText = result.message;
@@ -148,7 +185,7 @@ async function handleRegister(e) {
         
         if (result.status === 'success') {
             alertBox.className = 'alert alert-success';
-            alertBox.innerText = 'Registration successful! Please wait for Admin approval.';
+            alertBox.innerText = 'Registration successful! Wait for Admin approval.';
             alertBox.style.display = 'block';
             document.getElementById('registerForm').reset();
         } else {
@@ -158,7 +195,7 @@ async function handleRegister(e) {
         }
     } catch (error) {
         alertBox.className = 'alert alert-danger';
-        alertBox.innerText = 'System error. Please try again.';
+        alertBox.innerText = 'System error.';
         alertBox.style.display = 'block';
     } finally {
         btn.disabled = false;
@@ -285,15 +322,13 @@ function setupPaymentLogic(block) {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
-    
     const btnSubmit = document.getElementById('btnSubmit');
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Submitting...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Submitting...';
     statusMsg.innerText = '';
-    statusMsg.className = 'me-auto align-self-center fw-bold';
-
+    
     const reqData = {
         requestorEmail: document.getElementById('requestorEmail').value,
         approverEmail: document.getElementById('approverEmail').value,
@@ -319,10 +354,7 @@ async function handleFormSubmit(e) {
         });
     });
     
-    const payload = {
-        action: 'submitRequest',
-        data: reqData
-    };
+    const payload = { action: 'submitRequest', data: reqData };
 
     try {
         const response = await fetch(SCRIPT_URL, {
@@ -330,22 +362,130 @@ async function handleFormSubmit(e) {
             body: JSON.stringify(payload),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        
         const result = await response.json();
         
         if (result.status === 'success') {
-            statusMsg.innerText = `Success! Request ${result.reqNo} submitted. Status: Pending with ${reqData.approverEmail}`;
-            statusMsg.classList.add('text-success');
+            statusMsg.innerText = `Success! Submitted ${result.reqNo}`;
+            statusMsg.className = 'fw-bold text-success';
             document.getElementById('approvalForm').reset();
             document.getElementById('itemsContainer').innerHTML = '';
             document.getElementById('requestorEmail').value = currentUser.name;
             addNewItem();
         }
     } catch (error) {
-        statusMsg.innerText = 'Error submitting request. Please try again.';
-        statusMsg.classList.add('text-danger');
+        statusMsg.innerText = 'Error submitting request.';
+        statusMsg.className = 'fw-bold text-danger';
     } finally {
         btnSubmit.disabled = false;
-        btnSubmit.innerText = 'Submit Request';
+        btnSubmit.innerHTML = 'Submit Request <i class="fa-solid fa-paper-plane ms-2"></i>';
     }
+}
+
+async function fetchDashboard() {
+    const tbody = document.getElementById('dashboardTableBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
+    
+    try {
+        const payload = { action: 'getRequests', user: currentUser };
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            tbody.innerHTML = '';
+            if (result.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No requests found.</td></tr>';
+                return;
+            }
+            
+            result.data.forEach(req => {
+                const date = new Date(req.date).toLocaleDateString('en-GB');
+                let badgeClass = 'bg-warning text-dark';
+                if (req.status === 'Completed') badgeClass = 'bg-success';
+                if (req.status === 'Rejected') badgeClass = 'bg-danger';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-bold text-primary">${req.reqNo}</td>
+                    <td>${date}</td>
+                    <td>${req.requestor}</td>
+                    <td><span class="badge ${badgeClass} rounded-pill px-3">${req.status}</span></td>
+                    <td class="text-end fw-bold">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill me-1" onclick="printRequest('${req.reqNo}', '${req.requestor}', '${date}', '${req.status}', ${req.grandTotal})"><i class="fa-solid fa-print"></i></button>
+                        ${req.status.includes('Pending') ? `<button class="btn btn-sm btn-outline-primary rounded-pill" onclick="resendRequest('${req.reqNo}', this)"><i class="fa-solid fa-envelope"></i> Resend</button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">Failed to load data.</td></tr>';
+    }
+}
+
+async function resendRequest(reqNo, btnEl) {
+    const originalText = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    
+    try {
+        const payload = { action: 'resendRequest', reqNo: reqNo };
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert('Email resent successfully for ' + reqNo);
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Failed to resend email.');
+    } finally {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalText;
+    }
+}
+
+function printRequest(reqNo, requestor, date, status, total) {
+    const printWindow = window.open('', '_blank');
+    const html = `
+        <html>
+        <head>
+            <title>Print Request ${reqNo}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                .details { margin-bottom: 30px; line-height: 1.6; }
+                .total { font-size: 1.2em; font-weight: bold; margin-top: 20px; text-align: right; }
+                .status { font-weight: bold; padding: 5px 10px; border: 1px solid #ccc; display: inline-block; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>APPROVAL REQUEST</h2>
+                <h3>${reqNo}</h3>
+            </div>
+            <div class="details">
+                <p><strong>Date:</strong> ${date}</p>
+                <p><strong>Requestor:</strong> ${requestor}</p>
+                <p><strong>Status:</strong> <span class="status">${status}</span></p>
+            </div>
+            <div class="total">
+                Grand Total: ${parseFloat(total).toLocaleString('en-US', {minimumFractionDigits: 2})} THB
+            </div>
+            <script>
+                window.onload = function() { window.print(); window.close(); }
+            </script>
+        </body>
+        </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
 }
