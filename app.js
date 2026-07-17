@@ -2,14 +2,57 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwThYgHO5FSqCsm9pJW
 
 let globalDropdownData = null;
 let itemCount = 0;
+let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('autoDate').innerText = 'Date: ' + new Date().toLocaleDateString('en-GB');
-    fetchDropdownData();
+    
+    document.getElementById('showRegister').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('loginContainer').style.display = 'none';
+        document.getElementById('registerContainer').style.display = 'block';
+    });
+    
+    document.getElementById('showLogin').addEventListener('click', (e) => {
+        document.getElementById('registerContainer').style.display = 'none';
+        document.getElementById('loginContainer').style.display = 'block';
+    });
+    
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('registerForm').addEventListener('submit', handleRegister);
+    document.getElementById('btnLogout').addEventListener('click', handleLogout);
     
     document.getElementById('btnAddItem').addEventListener('click', addNewItem);
     document.getElementById('approvalForm').addEventListener('submit', handleFormSubmit);
+    
+    checkLocalSession();
+    fetchDropdownData();
 });
+
+function checkLocalSession() {
+    const savedUser = localStorage.getItem('approvalAppUser');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showAppScreen();
+    }
+}
+
+function showAppScreen() {
+    document.getElementById('loginContainer').style.display = 'none';
+    document.getElementById('registerContainer').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'block';
+    
+    document.getElementById('userDisplayInfo').innerText = `Welcome, ${currentUser.name} (${currentUser.branch})`;
+    document.getElementById('requestorEmail').value = currentUser.name;
+}
+
+function handleLogout() {
+    localStorage.removeItem('approvalAppUser');
+    currentUser = null;
+    document.getElementById('appContainer').style.display = 'none';
+    document.getElementById('loginContainer').style.display = 'block';
+    document.getElementById('loginForm').reset();
+}
 
 async function fetchDropdownData() {
     try {
@@ -22,11 +65,104 @@ async function fetchDropdownData() {
         data.emails.forEach(email => {
             approverSelect.innerHTML += `<option value="${email}">${email}</option>`;
         });
+        
+        const regBranchSelect = document.getElementById('regBranch');
+        regBranchSelect.innerHTML = '<option value="">Select Branch...</option>';
+        data.branches.forEach(branch => {
+            regBranchSelect.innerHTML += `<option value="${branch}">${branch}</option>`;
+        });
 
-        addNewItem();
+        if (itemCount === 0) addNewItem();
     } catch (error) {
         console.error('Error fetching dropdowns:', error);
-        alert('Failed to load system data. Please refresh.');
+    }
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnLogin');
+    const alertBox = document.getElementById('loginAlert');
+    const id = document.getElementById('loginId').value;
+    const password = document.getElementById('loginPass').value;
+    
+    btn.disabled = true;
+    btn.innerText = 'Logging in...';
+    alertBox.style.display = 'none';
+    
+    const payload = {
+        action: 'login',
+        data: { id: id, password: password }
+    };
+    
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            currentUser = result.user;
+            localStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
+            showAppScreen();
+        } else {
+            alertBox.innerText = result.message;
+            alertBox.style.display = 'block';
+        }
+    } catch (error) {
+        alertBox.innerText = 'System error. Please try again.';
+        alertBox.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Login';
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnRegister');
+    const alertBox = document.getElementById('registerAlert');
+    
+    btn.disabled = true;
+    btn.innerText = 'Submitting...';
+    alertBox.style.display = 'none';
+    
+    const payload = {
+        action: 'register',
+        data: {
+            id: document.getElementById('regId').value,
+            password: document.getElementById('regPass').value,
+            name: document.getElementById('regName').value,
+            branch: document.getElementById('regBranch').value
+        }
+    };
+    
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            alertBox.className = 'alert alert-success';
+            alertBox.innerText = 'Registration successful! Please wait for Admin approval.';
+            alertBox.style.display = 'block';
+            document.getElementById('registerForm').reset();
+        } else {
+            alertBox.className = 'alert alert-danger';
+            alertBox.innerText = result.message;
+            alertBox.style.display = 'block';
+        }
+    } catch (error) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.innerText = 'System error. Please try again.';
+        alertBox.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Submit Registration';
     }
 }
 
@@ -52,6 +188,10 @@ function addNewItem() {
         populateSelect(block.querySelector('.item-dept'), globalDropdownData.departments, 'Select Dept');
         populateSelect(block.querySelector('.item-paymethod'), globalDropdownData.paymentMethods, 'Select Method');
         populateSelect(block.querySelector('.item-bank'), globalDropdownData.banks, 'Select Bank');
+        
+        if (currentUser) {
+            block.querySelector('.item-branch').value = currentUser.branch;
+        }
     }
 
     setupItemCalculations(block);
@@ -154,7 +294,7 @@ async function handleFormSubmit(e) {
     statusMsg.innerText = '';
     statusMsg.className = 'me-auto align-self-center fw-bold';
 
-    const payload = {
+    const reqData = {
         requestorEmail: document.getElementById('requestorEmail').value,
         approverEmail: document.getElementById('approverEmail').value,
         items: []
@@ -162,7 +302,7 @@ async function handleFormSubmit(e) {
 
     const blocks = document.querySelectorAll('.item-block');
     blocks.forEach(block => {
-        payload.items.push({
+        reqData.items.push({
             description: block.querySelector('.item-desc').value,
             amount: block.querySelector('.item-amt').value,
             vat: block.querySelector('.item-vat').value,
@@ -178,29 +318,32 @@ async function handleFormSubmit(e) {
             accNo: block.querySelector('.item-accno').value || ""
         });
     });
+    
+    const payload = {
+        action: 'submitRequest',
+        data: reqData
+    };
 
     try {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify(payload),
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8',
-            }
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
         
         const result = await response.json();
         
         if (result.status === 'success') {
-            statusMsg.innerText = `Success! Request ${result.reqNo} submitted. Status: Pending with ${payload.approverEmail}`;
+            statusMsg.innerText = `Success! Request ${result.reqNo} submitted. Status: Pending with ${reqData.approverEmail}`;
             statusMsg.classList.add('text-success');
             document.getElementById('approvalForm').reset();
             document.getElementById('itemsContainer').innerHTML = '';
+            document.getElementById('requestorEmail').value = currentUser.name;
             addNewItem();
         }
     } catch (error) {
         statusMsg.innerText = 'Error submitting request. Please try again.';
         statusMsg.classList.add('text-danger');
-        console.error(error);
     } finally {
         btnSubmit.disabled = false;
         btnSubmit.innerText = 'Submit Request';

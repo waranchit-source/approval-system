@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Approval System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+<div class="container py-5" id="loginContainer">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 mt-5">
+                <div class="card-header bg-dark text-white p-4 text-center">
+                    <h3 class="mb-0">System Login</h3>
+                </div>
+                <div class="card-body p-4">
+                    <div id="loginAlert" class="alert alert-danger" style="display:none;"></div>
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ID / Username</label>
+                            <input type="text" class="form-control" id="loginId" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Password</label>
+                            <input type="password" class="form-control" id="loginPass" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-dark" id="btnLogin">Login</button>
+                        </div>
+                    </form>
+                    <div class="text-center mt-4">
+                        <a href="#" id="showRegister" class="text-decoration-none text-secondary">Create new account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5" id="registerContainer" style="display:none;">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-secondary text-white p-4 text-center">
+                    <h3 class="mb-0">Register Account</h3>
+                </div>
+                <div class="card-body p-4">
+                    <div id="registerAlert" class="alert alert-info" style="display:none;"></div>
+                    <form id="registerForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">ID / Username</label>
+                                <input type="text" class="form-control" id="regId" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Password</label>
+                                <input type="password" class="form-control" id="regPass" required>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">First & Last Name</label>
+                                <input type="text" class="form-control" id="regName" required>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Branch</label>
+                                <select class="form-select" id="regBranch" required>
+                                    <option value="">Loading branches...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-12 mt-4 d-grid gap-2">
+                                <button type="submit" class="btn btn-secondary" id="btnRegister">Submit Registration</button>
+                                <button type="button" class="btn btn-light border" id="showLogin">Back to Login</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5" id="appContainer" style="display:none;">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0">New Approval Request</h3>
+                <p class="mb-0 text-light mt-1" id="autoDate"></p>
+            </div>
+            <div>
+                <span class="me-3" id="userDisplayInfo"></span>
+                <button class="btn btn-sm btn-outline-light" id="btnLogout">Logout</button>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            
+            <form id="approvalForm">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Requestor Email / Name</label>
+                        <input type="text" class="form-control" id="requestorEmail" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Send to Approver</label>
+                        <select class="form-select" id="approverEmail" required>
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="mb-4">
+                <h5 class="fw-bold mb-3">Request Items</h5>
+                
+                <div id="itemsContainer">
+                </div>
+
+                <div class="mb-4">
+                    <button type="button" class="btn btn-outline-dark" id="btnAddItem">+ Add Another Item</button>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end border-top pt-4">
+                    <div id="statusMessage" class="me-auto align-self-center fw-bold"></div>
+                    <button type="submit" class="btn btn-dark px-5" id="btnSubmit">Submit Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<template id="itemTemplate">
+    <div class="item-block card mb-3 border-secondary-subtle">
+        <div class="card-body bg-white">
+            <div class="d-flex justify-content-between mb-3">
+                <h6 class="fw-bold text-secondary">Item #<span class="item-number">1</span></h6>
+                <button type="button" class="btn btn-sm btn-danger btn-remove-item" style="display:none;">Remove</button>
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control item-desc" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="form-label">Amount (Excl. VAT)</label>
+                    <input type="number" step="0.01" class="form-control item-amt" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">VAT (7%)</label>
+                    <input type="number" step="0.01" class="form-control item-vat" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Withholding Tax</label>
+                    <input type="number" step="0.01" class="form-control item-wht" value="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Total</label>
+                    <input type="number" step="0.01" class="form-control item-total" readonly>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Invoice No.</label>
+                    <input type="text" class="form-control item-inv">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Branch</label>
+                    <select class="form-select item-branch" required></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Department</label>
+                    <select class="form-select item-dept" required></select>
+                </div>
+                
+                <div class="col-md-12">
+                    <label class="form-label">Remarks</label>
+                    <input type="text" class="form-control item-remark">
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label text-primary fw-bold">Payment Method</label>
+                    <select class="form-select item-paymethod border-primary" required></select>
+                </div>
+                <div class="col-md-8">
+                    <div class="row g-2 bank-details-container" style="display:none;">
+                        <div class="col-md-4 bank-col" style="display:none;">
+                            <label class="form-label">Bank</label>
+                            <select class="form-select item-bank"></select>
+                        </div>
+                        <div class="col-md-4 accname-col" style="display:none;">
+                            <label class="form-label">Account Name</label>
+                            <input type="text" class="form-control item-accname">
+                        </div>
+                        <div class="col-md-4 accno-col" style="display:none;">
+                            <label class="form-label">Account No.</label>
+                            <input type="text" class="form-control item-accno">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
