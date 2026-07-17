@@ -4,6 +4,7 @@ let globalDropdownData = null;
 let itemCount = 0;
 let currentUser = null;
 let approvalModalInstance = null;
+window.dashboardData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     const autoDateEl = document.getElementById('autoDate');
@@ -35,9 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedId = localStorage.getItem('savedApprovalId');
     const savedPass = localStorage.getItem('savedApprovalPass');
     if(savedId && savedPass) {
-        document.getElementById('loginId').value = savedId;
-        document.getElementById('loginPass').value = savedPass;
-        document.getElementById('rememberMe').checked = true;
+        const loginIdEl = document.getElementById('loginId');
+        const loginPassEl = document.getElementById('loginPass');
+        if (loginIdEl) loginIdEl.value = savedId;
+        if (loginPassEl) loginPassEl.value = savedPass;
+        const rememberMeEl = document.getElementById('rememberMe');
+        if (rememberMeEl) rememberMeEl.checked = true;
     }
     
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
@@ -78,6 +82,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMobileToggle')?.addEventListener('click', () => {
         document.getElementById('sidebarMenu').classList.add('show');
         document.getElementById('sidebarMenu').classList.remove('collapsed');
+    });
+
+    document.getElementById('searchDashboard')?.addEventListener('input', (e) => {
+        const keyword = e.target.value.toLowerCase();
+        const filtered = window.dashboardData.filter(req => {
+            const dateStr = new Date(req.date).toLocaleDateString('en-GB');
+            return req.reqNo.toLowerCase().includes(keyword) || 
+                   dateStr.includes(keyword) ||
+                   req.requestor.toLowerCase().includes(keyword);
+        });
+        renderDashboard(filtered);
     });
 
     if(document.getElementById('approvalModal')) {
@@ -354,40 +369,28 @@ async function handleFormSubmit(e) {
             items: []
         };
 
-        // เพิ่ม Try...Catch ครอบตอนดึงข้อมูลป้องกัน UI ค้าง
-        document.querySelectorAll('.item-block').forEach((block, index) => {
-            const descEl = block.querySelector('.item-desc');
-            const amtEl = block.querySelector('.item-amt');
-            const vatEl = block.querySelector('.item-vat');
-            const whtEl = block.querySelector('.item-wht');
-            const totalEl = block.querySelector('.item-total');
-            const invEl = block.querySelector('.item-inv');
-            const branchEl = block.querySelector('.item-branch');
-            const deptEl = block.querySelector('.item-dept');
-            const remarkEl = block.querySelector('.item-remark');
-            const payMethodEl = block.querySelector('.item-paymethod');
-            const bankEl = block.querySelector('.item-bank');
-            const accNameEl = block.querySelector('.item-accname');
-            const accNoEl = block.querySelector('.item-accno');
-            
-            if(!descEl) throw new Error("Description field missing in Item #" + (index + 1));
+        const blocks = document.querySelectorAll('.item-block');
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i];
+            const desc = block.querySelector('.item-desc')?.value;
+            if(!desc) throw new Error("Please fill Description in Item #" + (i + 1));
 
             reqData.items.push({
-                description: descEl.value,
-                amount: amtEl.value,
-                vat: vatEl.value,
-                wht: whtEl.value,
-                total: totalEl.value,
-                invoice: invEl.value,
-                branch: branchEl.value,
-                department: deptEl.value,
-                remarks: remarkEl.value,
-                paymentMethod: payMethodEl.value,
-                bank: bankEl ? bankEl.value : "",
-                accName: accNameEl ? accNameEl.value : "",
-                accNo: accNoEl ? accNoEl.value : ""
+                description: desc,
+                amount: block.querySelector('.item-amt')?.value || 0,
+                vat: block.querySelector('.item-vat')?.value || 0,
+                wht: block.querySelector('.item-wht')?.value || 0,
+                total: block.querySelector('.item-total')?.value || 0,
+                invoice: block.querySelector('.item-inv')?.value || "",
+                branch: block.querySelector('.item-branch')?.value || "",
+                department: block.querySelector('.item-dept')?.value || "",
+                remarks: block.querySelector('.item-remark')?.value || "",
+                paymentMethod: block.querySelector('.item-paymethod')?.value || "",
+                bank: block.querySelector('.item-bank')?.value || "",
+                accName: block.querySelector('.item-accname')?.value || "",
+                accNo: block.querySelector('.item-accno')?.value || ""
             });
-        });
+        }
 
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
@@ -405,12 +408,11 @@ async function handleFormSubmit(e) {
             document.getElementById('requestorEmail').value = currentUser.name;
             addNewItem();
         } else {
-            statusMsg.innerText = result.message || 'Error from server.';
-            statusMsg.className = 'fw-bold text-danger';
+            throw new Error(result.message || 'Server error.');
         }
     } catch (error) {
         console.error(error);
-        statusMsg.innerText = 'Error: Check if all fields are correct.';
+        statusMsg.innerText = 'Error: ' + error.message;
         statusMsg.className = 'fw-bold text-danger';
     } finally {
         btnSubmit.disabled = false;
@@ -433,47 +435,52 @@ async function fetchDashboard() {
         
         if (result.status === 'success') {
             window.dashboardData = result.data;
-            tbody.innerHTML = '';
-            if (result.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary">No requests found.</td></tr>';
-                return;
-            }
-            
-            result.data.forEach(req => {
-                const date = new Date(req.date).toLocaleDateString('en-GB');
-                let bClass = 'bg-warning text-dark';
-                if (req.status === 'Completed') bClass = 'bg-success text-white';
-                if (req.status === 'Rejected') bClass = 'bg-danger text-white';
-                
-                let resendBtn = '';
-                if (currentUser.role === 'Admin' || req.requestor === currentUser.name) {
-                    resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
-                }
-                
-                let reviewBtn = '';
-                if (currentUser.role === 'Admin' || (req.status.indexOf('Pending') > -1)) {
-                    reviewBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal('${req.reqNo}')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>`;
-                }
-                
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="fw-bold ig-text">${req.reqNo}</td>
-                    <td class="text-light">${date}</td>
-                    <td class="text-light">${req.requestor}</td>
-                    <td><span class="badge ${bClass} rounded-pill px-3">${req.status}</span></td>
-                    <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    <td class="text-center" style="white-space: nowrap;">
-                        <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
-                        ${resendBtn}
-                        ${reviewBtn}
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+            renderDashboard(window.dashboardData);
         }
     } catch (error) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">Failed to load data.</td></tr>';
     }
+}
+
+function renderDashboard(dataToRender) {
+    const tbody = document.getElementById('dashboardTableBody');
+    tbody.innerHTML = '';
+    if (dataToRender.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary">No requests found.</td></tr>';
+        return;
+    }
+    
+    dataToRender.forEach(req => {
+        const date = new Date(req.date).toLocaleDateString('en-GB');
+        let bClass = 'bg-warning text-dark';
+        if (req.status === 'Completed') bClass = 'bg-success text-white';
+        if (req.status === 'Rejected') bClass = 'bg-danger text-white';
+        
+        let resendBtn = '';
+        if (currentUser.role === 'Admin' || req.requestor === currentUser.name) {
+            resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
+        }
+        
+        let reviewBtn = '';
+        if (currentUser.role === 'Admin' || (req.status.indexOf('Pending') > -1)) {
+            reviewBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal('${req.reqNo}')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>`;
+        }
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-bold ig-text">${req.reqNo}</td>
+            <td class="text-light">${date}</td>
+            <td class="text-light">${req.requestor}</td>
+            <td><span class="badge ${bClass} rounded-pill px-3">${req.status}</span></td>
+            <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+            <td class="text-center" style="white-space: nowrap;">
+                <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
+                ${resendBtn}
+                ${reviewBtn}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 async function resendRequest(reqNo, btnEl) {
@@ -592,7 +599,24 @@ function printRequest(reqNo) {
     const date = new Date(req.date).toLocaleDateString('en-GB');
     let itemsRows = '';
     
-    req.items.forEach((item, index) => {
+    let sumAmt = 0;
+    let sumVat = 0;
+    let sumWht = 0;
+    let sumTotal = 0;
+    
+    const validItems = req.items.filter(item => item.status !== 'Rejected');
+    
+    if (validItems.length === 0) {
+        alert('All items in this request were rejected. Nothing to print.');
+        return;
+    }
+    
+    validItems.forEach((item, index) => {
+        sumAmt += parseFloat(item.amount) || 0;
+        sumVat += parseFloat(item.vat) || 0;
+        sumWht += parseFloat(item.wht) || 0;
+        sumTotal += parseFloat(item.total) || 0;
+        
         itemsRows += `
             <tr>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
@@ -608,7 +632,7 @@ function printRequest(reqNo) {
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; color: ${item.status === 'Completed' ? '#28a745' : (item.status === 'Rejected' ? '#dc3545' : '#f09433')}">${item.status}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: center; font-weight: bold; color: ${item.status === 'Completed' ? '#28a745' : '#f09433'}">${item.status}</td>
             </tr>
         `;
     });
@@ -625,7 +649,9 @@ function printRequest(reqNo) {
             .status { font-weight: bold; padding: 5px 12px; border-radius: 20px; color: #fff; background-color: #333; display: inline-block; font-size: 14px;}
             table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
             th { background-color: #f4f4f4; border-bottom: 2px solid #000; padding: 12px 8px; text-transform: uppercase; font-size: 12px; }
-            .total-section { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; border-top: 2px solid #000; padding-top: 20px; }
+            .summary-box { float: right; width: 350px; font-size: 16px; margin-top: 20px; }
+            .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #ccc; }
+            .summary-total { display: flex; justify-content: space-between; padding: 15px 0; font-weight: bold; font-size: 20px; color: #dc3545; border-bottom: 2px solid #000; border-top: 2px solid #000; margin-top: 10px; }
         </style></head><body>
             <div class="header">
                 <h1 style="margin: 0 0 10px 0;">APPROVAL REQUEST</h1>
@@ -654,9 +680,27 @@ function printRequest(reqNo) {
                 ${itemsRows}
             </table>
             
-            <div class="total-section">
-                GRAND TOTAL: <span style="color: #dc3545; font-size: 22px;">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span>Amount (Excl. VAT):</span>
+                    <span>${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                </div>
+                <div class="summary-row">
+                    <span>VAT (7%):</span>
+                    <span>${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                </div>
+                <div class="summary-row">
+                    <span>Withholding Tax:</span>
+                    <span>${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                </div>
+                <div class="summary-total">
+                    <span>GRAND TOTAL:</span>
+                    <span>${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                </div>
             </div>
+            
+            <div style="clear: both;"></div>
+            
             <script>window.onload = function() { window.print(); window.close(); }</script>
         </body></html>
     `;

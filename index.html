@@ -69,7 +69,7 @@
                         </div>
                         <div class="col-md-12">
                             <label class="form-label text-light fw-semibold">Branch</label>
-                            <select class="form-select neon-input" id="regBranch" required></select>
+                            <select class="form-select neon-input form-select-custom" id="regBranch" required></select>
                         </div>
                         <div class="col-md-12 mt-4">
                             <button type="submit" class="btn btn-ig w-100 py-3 fw-bold rounded-pill mb-3" id="btnRegister">Sign Up</button>
@@ -148,9 +148,18 @@
         </div>
 
         <div id="dashboardSection" class="content-section" style="display:none;">
-            <div class="text-end mb-3">
-                <button class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm" id="btnRefreshDashboard"><i class="fa-solid fa-rotate-right me-2"></i>Refresh</button>
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-8 mb-3 mb-md-0">
+                    <div class="position-relative">
+                        <i class="fa-solid fa-magnifying-glass position-absolute text-secondary" style="left: 15px; top: 14px;"></i>
+                        <input type="text" id="searchDashboard" class="form-control neon-input ps-5" placeholder="Search Ref No., Date, or Requestor Name...">
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <button class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm" id="btnRefreshDashboard"><i class="fa-solid fa-rotate-right me-2"></i>Refresh</button>
+                </div>
             </div>
+            
             <div class="glass-panel p-0 overflow-hidden">
                 <div class="table-responsive">
                     <table class="table table-dark table-hover align-middle m-0 custom-table">
@@ -174,6 +183,7 @@
     </main>
 </div>
 
+<!-- Modal Approval -->
 <div class="modal fade" id="approvalModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content glass-panel p-0 border-secondary">
