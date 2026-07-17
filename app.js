@@ -30,6 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
             icon.classList.replace('fa-eye-slash', 'fa-eye');
         }
     });
+
+    const savedId = localStorage.getItem('savedApprovalId');
+    const savedPass = localStorage.getItem('savedApprovalPass');
+    if(savedId && savedPass) {
+        document.getElementById('loginId').value = savedId;
+        document.getElementById('loginPass').value = savedPass;
+        document.getElementById('rememberMe').checked = true;
+    }
     
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('registerForm')?.addEventListener('submit', handleRegister);
@@ -48,12 +56,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if(document.getElementById(targetId)) {
                 document.getElementById(targetId).style.display = 'block';
             }
+            document.getElementById('sidebarMenu').classList.remove('show');
         });
     });
 
     document.getElementById('btnLoadDashboard')?.addEventListener('click', fetchDashboard);
     document.getElementById('btnRefreshDashboard')?.addEventListener('click', fetchDashboard);
     
+    ['btnOpenSidebarForm', 'btnOpenSidebarDash'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('sidebarMenu').classList.add('show');
+        });
+    });
+    document.getElementById('btnCloseSidebar')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('sidebarMenu').classList.remove('show');
+    });
+
     checkLocalSession();
     fetchDropdownData();
 });
@@ -92,8 +112,6 @@ function handleLogout() {
     currentUser = null;
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('loginContainer').style.display = 'block';
-    const form = document.getElementById('loginForm');
-    if(form) form.reset();
 }
 
 async function fetchDropdownData() {
@@ -142,9 +160,14 @@ async function handleLogin(e) {
         
         if (result.status === 'success') {
             currentUser = result.user;
+            
             if(rememberMe) {
+                localStorage.setItem('savedApprovalId', id);
+                localStorage.setItem('savedApprovalPass', password);
                 localStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
             } else {
+                localStorage.removeItem('savedApprovalId');
+                localStorage.removeItem('savedApprovalPass');
                 sessionStorage.setItem('approvalAppUser', JSON.stringify(currentUser));
             }
             showAppScreen();
@@ -374,6 +397,7 @@ async function fetchDashboard() {
         const result = await response.json();
         
         if (result.status === 'success') {
+            window.dashboardData = result.data;
             tbody.innerHTML = '';
             if (result.data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary">No requests found.</td></tr>';
@@ -387,8 +411,8 @@ async function fetchDashboard() {
                 if (req.status === 'Rejected') bClass = 'bg-danger text-white';
                 
                 let resendBtn = '';
-                if (req.status.includes('Pending') && (currentUser.role === 'Admin' || req.requestor === currentUser.name)) {
-                    resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)"><i class="fa-solid fa-paper-plane"></i></button>`;
+                if (currentUser.role === 'Admin' || req.requestor === currentUser.name) {
+                    resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
                 }
                 
                 const tr = document.createElement('tr');
@@ -398,8 +422,8 @@ async function fetchDashboard() {
                     <td class="text-light">${req.requestor}</td>
                     <td><span class="badge ${bClass} rounded-pill px-3">${req.status}</span></td>
                     <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}', '${req.requestor}', '${date}', '${req.status}', ${req.grandTotal})"><i class="fa-solid fa-print"></i></button>
+                    <td class="text-center" style="white-space: nowrap;">
+                        <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
                         ${resendBtn}
                     </td>
                 `;
@@ -436,20 +460,75 @@ async function resendRequest(reqNo, btnEl) {
     }
 }
 
-function printRequest(reqNo, requestor, date, status, total) {
+function printRequest(reqNo) {
+    const req = window.dashboardData.find(r => r.reqNo === reqNo);
+    if(!req) return alert('Request data not found.');
+    
+    const date = new Date(req.date).toLocaleDateString('en-GB');
+    let itemsRows = '';
+    
+    req.items.forEach((item, index) => {
+        itemsRows += `
+            <tr>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd;">
+                    <strong>${item.description}</strong><br>
+                    <small style="color: #666;">
+                        Inv: ${item.invoice || '-'} | Dept: ${item.department} | Branch: ${item.branch}<br>
+                        Remarks: ${item.remarks || '-'} | Payment: ${item.paymentMethod}
+                    </small>
+                </td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+            </tr>
+        `;
+    });
+
     const printWindow = window.open('', '_blank');
     const html = `
         <html><head><title>Print Request ${reqNo}</title>
         <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-            .details { margin-bottom: 30px; line-height: 1.6; }
-            .total { font-size: 1.2em; font-weight: bold; margin-top: 20px; text-align: right; }
-            .status { font-weight: bold; padding: 5px 10px; border: 1px solid #ccc; display: inline-block; }
+            @media print { body { -webkit-print-color-adjust: exact; } }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 20px; }
+            .details { margin-bottom: 30px; display: flex; justify-content: space-between; }
+            .details div { line-height: 1.8; }
+            .status { font-weight: bold; padding: 5px 12px; border-radius: 20px; color: #fff; background-color: #333; display: inline-block; font-size: 14px;}
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+            th { background-color: #f4f4f4; border-bottom: 2px solid #000; padding: 12px 8px; text-transform: uppercase; font-size: 12px; }
+            .total-section { text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; border-top: 2px solid #000; padding-top: 20px; }
         </style></head><body>
-            <div class="header"><h2>APPROVAL REQUEST</h2><h3>${reqNo}</h3></div>
-            <div class="details"><p><strong>Date:</strong> ${date}</p><p><strong>Requestor:</strong> ${requestor}</p><p><strong>Status:</strong> <span class="status">${status}</span></p></div>
-            <div class="total">Grand Total: ${parseFloat(total).toLocaleString('en-US', {minimumFractionDigits: 2})} THB</div>
+            <div class="header">
+                <h1 style="margin: 0 0 10px 0;">APPROVAL REQUEST</h1>
+                <h2 style="margin: 0; color: #666;">${reqNo}</h2>
+            </div>
+            <div class="details">
+                <div>
+                    <p style="margin:0;"><strong>Requestor:</strong> ${req.requestor}</p>
+                    <p style="margin:0;"><strong>Date:</strong> ${date}</p>
+                </div>
+                <div>
+                    <p style="margin:0;"><strong>Status:</strong> <span class="status">${req.status}</span></p>
+                </div>
+            </div>
+            
+            <table>
+                <tr>
+                    <th style="text-align: left;">#</th>
+                    <th style="text-align: left;">Description & Details</th>
+                    <th style="text-align: right;">Amount</th>
+                    <th style="text-align: right;">VAT(7%)</th>
+                    <th style="text-align: right;">WHT</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+                ${itemsRows}
+            </table>
+            
+            <div class="total-section">
+                GRAND TOTAL: <span style="color: #dc3545; font-size: 22px;">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+            </div>
             <script>window.onload = function() { window.print(); window.close(); }</script>
         </body></html>
     `;

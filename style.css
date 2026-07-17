@@ -32,20 +32,21 @@ body {
     padding: 40px;
 }
 .neon-input {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.5) !important;
     border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
+    color: #fff !important;
     border-radius: 12px;
     padding: 12px 16px;
 }
 .neon-input:focus {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.8) !important;
     border-color: #dc2743;
-    color: #fff;
     box-shadow: 0 0 15px rgba(220, 39, 67, 0.3);
 }
 .form-select.neon-input {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-size: 16px 12px;
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
 }
 
 /* Layout System */
@@ -54,9 +55,10 @@ body {
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    position: relative;
 }
 .glass-panel-side {
-    background: rgba(20, 20, 20, 0.95);
+    background: rgba(20, 20, 20, 0.98);
     border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 .sidebar {
@@ -64,9 +66,9 @@ body {
     display: flex;
     flex-direction: column;
     padding: 30px 20px;
+    transition: left 0.3s ease;
 }
 .sidebar-header {
-    text-align: center;
     padding-bottom: 30px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
     margin-bottom: 20px;
@@ -118,4 +120,20 @@ body {
 .custom-table td {
     padding: 20px 15px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: absolute;
+        left: -100%;
+        height: 100%;
+        z-index: 1050;
+        box-shadow: 10px 0 15px rgba(0,0,0,0.5);
+    }
+    .sidebar.show {
+        left: 0;
+    }
+    .main-content {
+        padding: 20px;
+    }
 }
