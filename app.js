@@ -353,7 +353,6 @@ function setupPaymentLogic(block) {
     });
 }
 
-// Function Convert File to Base64
 const getBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -588,7 +587,7 @@ async function handleModalSubmit(e) {
         if (checkedInput) {
             selections.push(checkedInput.value);
         } else {
-            selections.push('Skip'); // ป้องกัน Error หากไม่มีการเลือก (สำหรับรายการที่ Approve ไปแล้ว)
+            selections.push('Skip');
         }
     });
     
@@ -690,11 +689,12 @@ function printRequest(reqNo) {
             .status-completed { background-color: #d1e7dd; color: #0f5132; }
             .status-rejected { background-color: #f8d7da; color: #842029; }
             .status-pending { background-color: #fff3cd; color: #664d03; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
-            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 10px; text-transform: uppercase; font-size: 11px; font-weight: 600; }
-            .summary-box { float: right; width: 320px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; margin-top: 10px; }
-            .summary-row { display: flex; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid #e9ecef; font-size: 13px; color: #495057; }
-            .summary-total { display: flex; justify-content: space-between; padding: 15px; font-weight: 700; font-size: 16px; background-color: #f8f9fa; color: #212529; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 8px; text-transform: uppercase; font-size: 10px; font-weight: 600; }
+            .summary-wrapper { display: flex; justify-content: flex-end; page-break-inside: avoid; }
+            .summary-box { width: 280px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+            .summary-row { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #e9ecef; font-size: 11px; color: #495057; }
+            .summary-total { display: flex; justify-content: space-between; padding: 12px; font-weight: 700; font-size: 14px; background-color: #f8f9fa; color: #212529; }
             .total-amount-color { color: #d97706; }
         </style></head><body>
             <div class="header">
@@ -727,26 +727,26 @@ function printRequest(reqNo) {
                 ${itemsRows}
             </table>
             
-            <div class="summary-box">
-                <div class="summary-row">
-                    <span>Amount (Excl. VAT)</span>
-                    <span style="font-weight: 600;">${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                </div>
-                <div class="summary-row">
-                    <span>VAT (7%)</span>
-                    <span style="font-weight: 600;">${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                </div>
-                <div class="summary-row">
-                    <span>Withholding Tax</span>
-                    <span style="font-weight: 600;">${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                </div>
-                <div class="summary-total">
-                    <span>Grand Total</span>
-                    <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+            <div class="summary-wrapper">
+                <div class="summary-box">
+                    <div class="summary-row">
+                        <span>Amount (Excl. VAT)</span>
+                        <span style="font-weight: 600;">${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>VAT (7%)</span>
+                        <span style="font-weight: 600;">${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Withholding Tax</span>
+                        <span style="font-weight: 600;">${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div class="summary-total">
+                        <span>Grand Total</span>
+                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
                 </div>
             </div>
-            
-            <div style="clear: both;"></div>
             
             <script>window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
         </body></html>
