@@ -228,6 +228,17 @@
                 <label class="form-label text-secondary fw-semibold text-sm">Description</label>
                 <input type="text" class="form-control neon-input item-desc" required>
             </div>
+            
+            <!-- เพิ่มส่วนอัปโหลดไฟล์ และ URL -->
+            <div class="col-md-6">
+                <label class="form-label text-secondary fw-semibold text-sm">Product Photo <small>(Max 2MB)</small></label>
+                <input type="file" class="form-control neon-input item-photo" accept="image/*">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-secondary fw-semibold text-sm">Image URL</label>
+                <input type="text" class="form-control neon-input item-imageurl">
+            </div>
+
             <div class="col-md-3">
                 <label class="form-label text-secondary fw-semibold text-sm">Amount</label>
                 <input type="number" step="0.01" class="form-control neon-input item-amt" required>

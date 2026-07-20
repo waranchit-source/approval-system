@@ -353,13 +353,21 @@ function setupPaymentLogic(block) {
     });
 }
 
+// Function Convert File to Base64
+const getBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+});
+
 async function handleFormSubmit(e) {
     e.preventDefault();
     const btnSubmit = document.getElementById('btnSubmit');
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Submitting (Please wait)...';
     statusMsg.innerText = '';
     
     try {
@@ -375,12 +383,26 @@ async function handleFormSubmit(e) {
             const desc = block.querySelector('.item-desc')?.value;
             if(!desc) throw new Error("Please fill Description in Item #" + (i + 1));
 
+            let photoData = null;
+            const fileInput = block.querySelector('.item-photo');
+            if (fileInput && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                if (file.size > 2 * 1024 * 1024) throw new Error(`File in Item #${i+1} is too large (Max 2MB)`);
+                photoData = {
+                    filename: file.name,
+                    mimeType: file.type,
+                    bytes: await getBase64(file)
+                };
+            }
+
             reqData.items.push({
                 description: desc,
                 amount: block.querySelector('.item-amt')?.value || 0,
                 vat: block.querySelector('.item-vat')?.value || 0,
                 wht: block.querySelector('.item-wht')?.value || 0,
                 total: block.querySelector('.item-total')?.value || 0,
+                productPhoto: photoData,
+                imageURL: block.querySelector('.item-imageurl')?.value || "",
                 invoice: block.querySelector('.item-inv')?.value || "",
                 branch: block.querySelector('.item-branch')?.value || "",
                 department: block.querySelector('.item-dept')?.value || "",
@@ -521,21 +543,27 @@ function openReviewModal(reqNo) {
     tbody.innerHTML = '';
     
     req.items.forEach((item, index) => {
-        let badge = '';
-        if(item.status === 'Completed') badge = '<span class="badge bg-success ms-2">Approved</span>';
-        if(item.status === 'Rejected') badge = '<span class="badge bg-danger ms-2">Rejected</span>';
-        
+        let actionHtml = '';
+        if (item.status.indexOf('Pending') > -1) {
+            actionHtml = `
+                <label class="me-2 text-success"><input type="radio" name="item_${index}" value="Approve" class="form-check-input" required> Approve</label>
+                <label class="text-danger"><input type="radio" name="item_${index}" value="Reject" class="form-check-input" required> Reject</label>
+            `;
+        } else {
+            let bClass = item.status === 'Completed' ? 'bg-success' : 'bg-danger';
+            actionHtml = `<span class="badge ${bClass}">${item.status}</span>`;
+        }
+
         tbody.innerHTML += `
             <tr>
                 <td class="text-center fw-bold">${index + 1}</td>
                 <td>
-                    <div class="fw-bold">${item.description} ${badge}</div>
+                    <div class="fw-bold">${item.description}</div>
                     <small class="text-muted">Inv: ${item.invoice || '-'} | Dept: ${item.department}</small>
                 </td>
                 <td class="text-end fw-bold">${parseFloat(item.total).toLocaleString('en-US')}</td>
                 <td class="text-center" style="white-space:nowrap;">
-                    <label class="me-2 text-success"><input type="radio" name="item_${index}" value="Approve" class="form-check-input" required> Approve</label>
-                    <label class="text-danger"><input type="radio" name="item_${index}" value="Reject" class="form-check-input" required> Reject</label>
+                    ${actionHtml}
                 </td>
             </tr>
         `;
@@ -556,8 +584,12 @@ async function handleModalSubmit(e) {
     
     const selections = [];
     req.items.forEach((item, index) => {
-        const val = document.querySelector(`input[name="item_${index}"]:checked`).value;
-        selections.push(val);
+        const checkedInput = document.querySelector(`input[name="item_${index}"]:checked`);
+        if (checkedInput) {
+            selections.push(checkedInput.value);
+        } else {
+            selections.push('Skip'); // ป้องกัน Error หากไม่มีการเลือก (สำหรับรายการที่ Approve ไปแล้ว)
+        }
     });
     
     try {
@@ -686,7 +718,7 @@ function printRequest(reqNo) {
             <table>
                 <tr>
                     <th style="text-align: left; width: 5%;">#</th>
-                    <th style="text-align: left; width: 55%;">Description</th>
+                    <th style="text-align: left; width: 55%;">Description & Details</th>
                     <th style="text-align: right; width: 10%;">Amount</th>
                     <th style="text-align: right; width: 10%;">VAT(7%)</th>
                     <th style="text-align: right; width: 10%;">WHT</th>
