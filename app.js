@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwThYgHO5FSqCsm9pJW_yDv3Y1cLvWg3oMW3vGB1D48roMPwSZWgedP9O6mORz3Lse/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzwCxJmjcKelx3trb0T97NkUSHYFOJZf8J7i3AOB_W7dqmlhRzGyasoUdHZ3M6y-FO1/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
@@ -648,28 +648,28 @@ function printRequest(reqNo) {
         sumWht += parseFloat(item.wht) || 0;
         sumTotal += parseFloat(item.total) || 0;
         
-        let detailsHtml = `<div style="display: flex; flex-wrap: wrap; gap: 8px; color: #6c757d; font-size: 11px; margin-top: 4px;">`;
-        if (item.invoice) detailsHtml += `<span><span style="color:#adb5bd;">INV:</span> <span style="color:#495057;">${item.invoice}</span></span>`;
-        if (item.department) detailsHtml += `<span><span style="color:#adb5bd;">DEPT:</span> <span style="color:#495057;">${item.department}</span></span>`;
-        if (item.branch) detailsHtml += `<span><span style="color:#adb5bd;">BRANCH:</span> <span style="color:#495057;">${item.branch}</span></span>`;
-        if (item.paymentMethod) detailsHtml += `<span><span style="color:#adb5bd;">PAYMENT:</span> <span style="color:#495057;">${item.paymentMethod}</span></span>`;
-        if (item.bank) detailsHtml += `<span><span style="color:#adb5bd;">BANK:</span> <span style="color:#495057;">${item.bank}</span></span>`;
-        if (item.accNo) detailsHtml += `<span><span style="color:#adb5bd;">A/C NO:</span> <span style="color:#495057;">${item.accNo}</span></span>`;
-        if (item.accName) detailsHtml += `<span><span style="color:#adb5bd;">A/C NAME:</span> <span style="color:#495057;">${item.accName}</span></span>`;
-        if (item.remarks) detailsHtml += `<span style="width: 100%;"><span style="color:#adb5bd;">REMARKS:</span> <span style="color:#495057;">${item.remarks}</span></span>`;
-        detailsHtml += `</div>`;
+        let detailsHtml = ``;
+        if (item.invoice) detailsHtml += `<span style="color:#adb5bd;">INV:</span> <span style="color:#495057;">${item.invoice}</span><br>`;
+        if (item.department) detailsHtml += `<span style="color:#adb5bd;">DEPT:</span> <span style="color:#495057;">${item.department}</span><br>`;
+        if (item.branch) detailsHtml += `<span style="color:#adb5bd;">BRANCH:</span> <span style="color:#495057;">${item.branch}</span><br>`;
+        if (item.remarks) detailsHtml += `<span style="color:#adb5bd;">REMARKS:</span> <span style="color:#495057;">${item.remarks}</span><br>`;
+        if (item.paymentMethod) detailsHtml += `<span style="color:#adb5bd;">PAYMENT:</span> <span style="color:#495057;">${item.paymentMethod}</span><br>`;
+        if (item.bank) detailsHtml += `<span style="color:#adb5bd;">BANK:</span> <span style="color:#495057;">${item.bank}</span><br>`;
+        if (item.accName) detailsHtml += `<span style="color:#adb5bd;">A/C NAME:</span> <span style="color:#495057;">${item.accName}</span><br>`;
+        if (item.accNo) detailsHtml += `<span style="color:#adb5bd;">A/C NO:</span> <span style="color:#495057;">${item.accNo}</span><br>`;
 
         itemsRows += `
             <tr>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057;">${index + 1}</td>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">
-                    <div style="font-weight: 600; font-size: 13px; color: #212529;">${item.description}</div>
-                    ${detailsHtml}
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057;">${index + 1}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">
+                    <div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">${item.description}</div>
+                    <div style="font-size: 11px; line-height: 1.4;">${detailsHtml}</div>
                 </td>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 15px 10px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 600; color: #212529;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 700; color: #212529;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: center; vertical-align: top; font-weight: 700; color: ${item.status === 'Completed' ? '#28a745' : '#f09433'}">${item.status}</td>
             </tr>
         `;
     });
@@ -678,29 +678,33 @@ function printRequest(reqNo) {
     const html = `
         <html><head><title>Print Request ${reqNo}</title>
         <style>
-            @media print { body { -webkit-print-color-adjust: exact; } }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #212529; }
-            .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #e9ecef; padding-bottom: 20px; }
-            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-            .details-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; }
-            .details-box p { margin: 0 0 8px 0; font-size: 13px; }
+            @media print { 
+                @page { margin: 15mm; size: A4 portrait; }
+                body { -webkit-print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }
+                .summary-wrapper { page-break-inside: avoid; }
+            }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #212529; max-width: 210mm; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; }
+            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+            .details-box { background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; }
+            .details-box p { margin: 0 0 5px 0; font-size: 11px; }
             .details-box p:last-child { margin: 0; }
-            .status-badge { font-weight: 600; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+            .status-badge { font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 10px; }
             .status-completed { background-color: #d1e7dd; color: #0f5132; }
             .status-rejected { background-color: #f8d7da; color: #842029; }
             .status-pending { background-color: #fff3cd; color: #664d03; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 8px; text-transform: uppercase; font-size: 10px; font-weight: 600; }
-            .summary-wrapper { display: flex; justify-content: flex-end; page-break-inside: avoid; }
-            .summary-box { width: 280px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
-            .summary-row { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #e9ecef; font-size: 11px; color: #495057; }
-            .summary-total { display: flex; justify-content: space-between; padding: 12px; font-weight: 700; font-size: 14px; background-color: #f8f9fa; color: #212529; }
-            .total-amount-color { color: #d97706; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }
+            .summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }
+            .summary-box { width: 200px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
+            .summary-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }
+            .summary-total { display: flex; justify-content: space-between; padding: 10px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }
+            .total-amount-color { color: #dc3545; }
         </style></head><body>
             <div class="header">
                 <div>
-                    <h1 style="margin: 0 0 5px 0; font-size: 24px; color: #212529;">APPROVAL REQUEST</h1>
-                    <h2 style="margin: 0; color: #6c757d; font-size: 16px; font-weight: 500;">${reqNo}</h2>
+                    <h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>
+                    <h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">${reqNo}</h2>
                 </div>
             </div>
             
@@ -710,7 +714,7 @@ function printRequest(reqNo) {
                     <p><span style="color:#6c757d;">Date:</span> <strong>${date}</strong></p>
                 </div>
                 <div class="details-box">
-                    <p><span style="color:#6c757d;">Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : 'status-pending')}">${req.status}</span></p>
+                    <p><span style="color:#6c757d;">Overall Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : 'status-pending')}">${req.status}</span></p>
                     <p><span style="color:#6c757d;">Approved By:</span> <strong>${req.approver || '-'}</strong></p>
                 </div>
             </div>
@@ -718,11 +722,12 @@ function printRequest(reqNo) {
             <table>
                 <tr>
                     <th style="text-align: left; width: 5%;">#</th>
-                    <th style="text-align: left; width: 55%;">Description & Details</th>
+                    <th style="text-align: left; width: 45%;">Description & Details</th>
                     <th style="text-align: right; width: 10%;">Amount</th>
                     <th style="text-align: right; width: 10%;">VAT(7%)</th>
                     <th style="text-align: right; width: 10%;">WHT</th>
                     <th style="text-align: right; width: 10%;">Total</th>
+                    <th style="text-align: center; width: 10%;">Status</th>
                 </tr>
                 ${itemsRows}
             </table>
@@ -742,8 +747,8 @@ function printRequest(reqNo) {
                         <span style="font-weight: 600;">${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                     </div>
                     <div class="summary-total">
-                        <span>Grand Total</span>
-                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                        <span>GRAND TOTAL</span>
+                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
                     </div>
                 </div>
             </div>
