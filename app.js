@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2hdNCy2KfoGyxpt_5Yqdg4A1A4Kfh3QSaykwr1sfs7lpgYcv33JL_sKMLayrrGEIZ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3q3e7yK9zL95UlBMcUPZ7Se0oRd0Se5iMjDEu5j0Xt03l7nXza2hAk3wtUFjPo5It/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAddItem')?.addEventListener('click', addNewItem);
     document.getElementById('approvalForm')?.addEventListener('submit', handleFormSubmit);
     document.getElementById('modalApprovalForm')?.addEventListener('submit', handleModalSubmit);
+    document.getElementById('btnBatchSend')?.addEventListener('click', handleBatchSend);
     
     document.querySelectorAll('.sidemenu-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -272,6 +273,15 @@ function addNewItem() {
             block.remove();
             updateItemNumbers();
         });
+
+        // Copy Payment Details from First Item
+        const firstBlock = document.querySelectorAll('.item-block')[0];
+        if(firstBlock) {
+            block.querySelector('.item-paymethod').value = firstBlock.querySelector('.item-paymethod').value;
+            block.querySelector('.item-bank').value = firstBlock.querySelector('.item-bank').value;
+            block.querySelector('.item-accname').value = firstBlock.querySelector('.item-accname').value;
+            block.querySelector('.item-accno').value = firstBlock.querySelector('.item-accno').value;
+        }
     }
 
     if (globalDropdownData) {
@@ -279,12 +289,18 @@ function addNewItem() {
         populateSelect(block.querySelector('.item-dept'), globalDropdownData.departments, 'Select Dept');
         populateSelect(block.querySelector('.item-paymethod'), globalDropdownData.paymentMethods, 'Select Method');
         populateSelect(block.querySelector('.item-bank'), globalDropdownData.banks, 'Select Bank');
+        
         if (currentUser) block.querySelector('.item-branch').value = currentUser.branch;
     }
 
     setupItemCalculations(block);
     setupPaymentLogic(block);
     document.getElementById('itemsContainer').appendChild(block);
+    
+    // Trigger update UI for payment logic if copied
+    if (itemCount > 1) {
+        block.querySelector('.item-paymethod').dispatchEvent(new Event('change'));
+    }
 }
 
 function populateSelect(element, dataArray, defaultText) {
@@ -335,14 +351,7 @@ function setupPaymentLogic(block) {
         [bankCol, nameCol, noCol].forEach(el => el.style.display = 'none');
         [bankInput, nameInput, noInput].forEach(el => el.required = false);
 
-        if (val.includes('cash')) {
-            container.style.display = 'none';
-        } else if (val.includes('cheque')) {
-            container.style.display = 'flex';
-            nameCol.style.display = 'block';
-            nameCol.classList.replace('col-md-4', 'col-md-12');
-            nameInput.required = true;
-        } else if (val.includes('transfer')) {
+        if (val.includes('cash') || val.includes('cheque') || val.includes('transfer')) {
             container.style.display = 'flex';
             [bankCol, nameCol, noCol].forEach(el => el.style.display = 'block');
             nameCol.classList.replace('col-md-12', 'col-md-4');
@@ -366,13 +375,14 @@ async function handleFormSubmit(e) {
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Submitting (Please wait)...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Saving (Draft)...';
     statusMsg.innerText = '';
     
     try {
         const reqData = {
             requestorEmail: document.getElementById('requestorEmail').value,
             approverEmail: document.getElementById('approverEmail').value,
+            docType: document.querySelector('input[name="docType"]:checked').value,
             items: []
         };
 
@@ -422,7 +432,7 @@ async function handleFormSubmit(e) {
         const result = JSON.parse(text);
         
         if (result.status === 'success') {
-            statusMsg.innerText = `Success! Submitted ${result.reqNo}`;
+            statusMsg.innerText = `Saved ${result.reqNo} as Draft successfully!`;
             statusMsg.className = 'fw-bold text-success';
             document.getElementById('approvalForm').reset();
             document.getElementById('itemsContainer').innerHTML = '';
@@ -437,13 +447,51 @@ async function handleFormSubmit(e) {
         statusMsg.className = 'fw-bold text-danger';
     } finally {
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = 'Submit Request <i class="fa-solid fa-arrow-right ms-2"></i>';
+        btnSubmit.innerHTML = 'Save Request (Draft) <i class="fa-solid fa-save ms-2"></i>';
+    }
+}
+
+async function handleBatchSend() {
+    const checkedBoxes = document.querySelectorAll('.req-cb:checked');
+    const checkedVals = Array.from(checkedBoxes).map(cb => cb.value);
+    
+    if(checkedVals.length === 0) {
+        return alert("Please select at least one 'Draft' request to send.");
+    }
+    
+    if(!confirm(`Send ${checkedVals.length} request(s) to Approver?`)) return;
+
+    const btn = document.getElementById('btnBatchSend');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Sending...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'batchSendRequest', reqNos: checkedVals, user: currentUser }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const text = await response.text();
+        const result = JSON.parse(text);
+        
+        if(result.status === 'success') {
+            alert('Approval email sent successfully!');
+            fetchDashboard();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch(err) {
+        alert('Network error while sending email.');
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
     }
 }
 
 async function fetchDashboard() {
     const tbody = document.getElementById('dashboardTableBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
     
     try {
         const response = await fetch(SCRIPT_URL, {
@@ -459,7 +507,7 @@ async function fetchDashboard() {
             renderDashboard(window.dashboardData);
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">Failed to load data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-danger">Failed to load data.</td></tr>';
     }
 }
 
@@ -467,7 +515,7 @@ function renderDashboard(dataToRender) {
     const tbody = document.getElementById('dashboardTableBody');
     tbody.innerHTML = '';
     if (dataToRender.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary">No requests found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-secondary">No requests found.</td></tr>';
         return;
     }
     
@@ -476,9 +524,15 @@ function renderDashboard(dataToRender) {
         let bClass = 'bg-warning text-dark';
         if (req.status === 'Completed') bClass = 'bg-success text-white';
         if (req.status === 'Rejected') bClass = 'bg-danger text-white';
+        if (req.status === 'Draft') bClass = 'bg-secondary text-white';
         
+        let cbHtml = `<i class="fa-solid fa-lock text-muted opacity-50"></i>`;
+        if (req.status === 'Draft') {
+            cbHtml = `<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="${req.reqNo}">`;
+        }
+
         let resendBtn = '';
-        if (currentUser.role === 'Admin' || req.requestor === currentUser.name) {
+        if (req.status.indexOf('Pending') > -1 && (currentUser.role === 'Admin' || req.requestor === currentUser.name)) {
             resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
         }
         
@@ -489,7 +543,11 @@ function renderDashboard(dataToRender) {
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="fw-bold ig-text">${req.reqNo}</td>
+            <td class="text-center">${cbHtml}</td>
+            <td class="fw-bold ig-text">
+                ${req.reqNo}<br>
+                <small class="text-muted" style="font-size:10px;">${req.docType || '-'}</small>
+            </td>
             <td class="text-light">${date}</td>
             <td class="text-light">${req.requestor}</td>
             <td><span class="badge ${bClass} rounded-pill px-3">${req.status}</span></td>
@@ -649,21 +707,23 @@ function printRequest(reqNo) {
         sumTotal += parseFloat(item.total) || 0;
         
         let detailsHtml = ``;
-        if (item.invoice) detailsHtml += `<span style="color:#adb5bd;">INV:</span> <span style="color:#495057;">${item.invoice}</span><br>`;
-        if (item.department) detailsHtml += `<span style="color:#adb5bd;">DEPT:</span> <span style="color:#495057;">${item.department}</span><br>`;
-        if (item.branch) detailsHtml += `<span style="color:#adb5bd;">BRANCH:</span> <span style="color:#495057;">${item.branch}</span><br>`;
-        if (item.remarks) detailsHtml += `<span style="color:#adb5bd;">REMARKS:</span> <span style="color:#495057;">${item.remarks}</span><br>`;
-        if (item.paymentMethod) detailsHtml += `<span style="color:#adb5bd;">PAYMENT:</span> <span style="color:#495057;">${item.paymentMethod}</span><br>`;
-        if (item.bank) detailsHtml += `<span style="color:#adb5bd;">BANK:</span> <span style="color:#495057;">${item.bank}</span><br>`;
-        if (item.accName) detailsHtml += `<span style="color:#adb5bd;">A/C NAME:</span> <span style="color:#495057;">${item.accName}</span><br>`;
-        if (item.accNo) detailsHtml += `<span style="color:#adb5bd;">A/C NO:</span> <span style="color:#495057;">${item.accNo}</span><br>`;
+        if (item.invoice) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">INV:</td><td style="color:#495057;">${item.invoice}</td></tr>`;
+        if (item.department) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">DEPT:</td><td style="color:#495057;">${item.department}</td></tr>`;
+        if (item.branch) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">BRANCH:</td><td style="color:#495057;">${item.branch}</td></tr>`;
+        if (item.paymentMethod) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">PAYMENT:</td><td style="color:#495057;">${item.paymentMethod}</td></tr>`;
+        if (item.bank) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">BANK:</td><td style="color:#495057;">${item.bank}</td></tr>`;
+        if (item.accName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">A/C NAME:</td><td style="color:#495057;">${item.accName}</td></tr>`;
+        if (item.accNo) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">A/C NO:</td><td style="color:#495057;">${item.accNo}</td></tr>`;
+        if (item.remarks) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">REMARKS:</td><td style="color:#495057;">${item.remarks}</td></tr>`;
 
         itemsRows += `
             <tr>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057;">${index + 1}</td>
+                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057; text-align: center;">${index + 1}</td>
                 <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">
                     <div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">${item.description}</div>
-                    <div style="font-size: 11px; line-height: 1.4;">${detailsHtml}</div>
+                    <table style="width:100%; border:none; margin:0; font-size:10px; line-height:1.2;">
+                        ${detailsHtml}
+                    </table>
                 </td>
                 <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
@@ -693,41 +753,43 @@ function printRequest(reqNo) {
             .status-completed { background-color: #d1e7dd; color: #0f5132; }
             .status-rejected { background-color: #f8d7da; color: #842029; }
             .status-pending { background-color: #fff3cd; color: #664d03; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
-            th { color: #adb5bd; border-bottom: 1px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }
+            .status-partial { background-color: #e2e3e5; color: #41464b; }
+            .main-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+            .main-table th { color: #adb5bd; border-bottom: 2px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }
+            .main-table td table td { padding: 2px 0; border: none; }
             .summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }
-            .summary-box { width: 200px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
-            .summary-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }
-            .summary-total { display: flex; justify-content: space-between; padding: 10px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }
+            .summary-box { width: 230px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
+            .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }
+            .summary-total { display: flex; justify-content: space-between; padding: 10px 12px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }
             .total-amount-color { color: #dc3545; }
         </style></head><body>
             <div class="header">
                 <div>
                     <h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>
-                    <h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">${reqNo}</h2>
+                    <h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">${reqNo} <span style="font-size: 12px; color: #adb5bd;">(${req.docType || 'Payment Voucher'})</span></h2>
                 </div>
             </div>
             
             <div class="details-grid">
                 <div class="details-box">
-                    <p><span style="color:#6c757d;">Requestor:</span> <strong>${req.requestor}</strong></p>
-                    <p><span style="color:#6c757d;">Date:</span> <strong>${date}</strong></p>
+                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Requestor:</span> <strong>${req.requestor}</strong></p>
+                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Date:</span> <strong>${date}</strong></p>
                 </div>
                 <div class="details-box">
-                    <p><span style="color:#6c757d;">Overall Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : 'status-pending')}">${req.status}</span></p>
-                    <p><span style="color:#6c757d;">Approved By:</span> <strong>${req.approver || '-'}</strong></p>
+                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Overall Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : (req.status === 'Pending' ? 'status-pending' : 'status-partial'))}">${req.status}</span></p>
+                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Approved By:</span> <strong>${req.approver || '-'}</strong></p>
                 </div>
             </div>
             
-            <table>
+            <table class="main-table">
                 <tr>
-                    <th style="text-align: left; width: 5%;">#</th>
-                    <th style="text-align: left; width: 45%;">Description & Details</th>
-                    <th style="text-align: right; width: 10%;">Amount</th>
-                    <th style="text-align: right; width: 10%;">VAT(7%)</th>
-                    <th style="text-align: right; width: 10%;">WHT</th>
-                    <th style="text-align: right; width: 10%;">Total</th>
-                    <th style="text-align: center; width: 10%;">Status</th>
+                    <th style="text-align: center; width: 5%;">#</th>
+                    <th style="text-align: left; width: 40%;">Description & Details</th>
+                    <th style="text-align: right; width: 11%;">Amount</th>
+                    <th style="text-align: right; width: 11%;">VAT(7%)</th>
+                    <th style="text-align: right; width: 11%;">WHT</th>
+                    <th style="text-align: right; width: 12%;">Total</th>
+                    <th style="text-align: center; width: 10%;">Item Status</th>
                 </tr>
                 ${itemsRows}
             </table>
@@ -748,7 +810,7 @@ function printRequest(reqNo) {
                     </div>
                     <div class="summary-total">
                         <span>GRAND TOTAL</span>
-                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
+                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                     </div>
                 </div>
             </div>
