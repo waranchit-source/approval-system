@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz3q3e7yK9zL95UlBMcUPZ7Se0oRd0Se5iMjDEu5j0Xt03l7nXza2hAk3wtUFjPo5It/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyW8vFzXLJil9pVlTKQ7PerSGT5I0bwFDVYIb8olK34JVoAQM4K02NC3Qr9t9MYY-cX/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
@@ -159,6 +159,13 @@ async function fetchDropdownData() {
             data.branches.forEach(branch => regBranchSelect.innerHTML += `<option value="${branch}">${branch}</option>`);
         }
 
+        // Populate global datalist for banks (so user can select or type)
+        const bankDatalist = document.getElementById('bankOptions');
+        if (bankDatalist && data.banks) {
+            bankDatalist.innerHTML = '';
+            data.banks.forEach(bank => bankDatalist.innerHTML += `<option value="${bank}">`);
+        }
+
         if (itemCount === 0) addNewItem();
     } catch (error) {
         console.error(error);
@@ -288,13 +295,29 @@ function addNewItem() {
         populateSelect(block.querySelector('.item-branch'), globalDropdownData.branches, 'Select Branch');
         populateSelect(block.querySelector('.item-dept'), globalDropdownData.departments, 'Select Dept');
         populateSelect(block.querySelector('.item-paymethod'), globalDropdownData.paymentMethods, 'Select Method');
-        populateSelect(block.querySelector('.item-bank'), globalDropdownData.banks, 'Select Bank');
+        populateSelect(block.querySelector('.item-company'), globalDropdownData.companies, 'Select Company');
+        
+        const vendorNames = globalDropdownData.vendors.map(v => v.name);
+        populateSelect(block.querySelector('.item-supplier'), vendorNames, 'Select Supplier');
         
         if (currentUser) block.querySelector('.item-branch').value = currentUser.branch;
     }
 
     setupItemCalculations(block);
     setupPaymentLogic(block);
+    
+    // Auto-fill logic for Supplier
+    const supplierSelect = block.querySelector('.item-supplier');
+    supplierSelect.addEventListener('change', (e) => {
+        const selectedName = e.target.value;
+        const vendor = globalDropdownData.vendors.find(v => v.name === selectedName);
+        if (vendor) {
+            block.querySelector('.item-accname').value = vendor.name; 
+            block.querySelector('.item-bank').value = vendor.bank;
+            block.querySelector('.item-accno').value = vendor.accNo;
+        }
+    });
+
     document.getElementById('itemsContainer').appendChild(block);
     
     // Trigger update UI for payment logic if copied
@@ -419,7 +442,10 @@ async function handleFormSubmit(e) {
                 paymentMethod: block.querySelector('.item-paymethod')?.value || "",
                 bank: block.querySelector('.item-bank')?.value || "",
                 accName: block.querySelector('.item-accname')?.value || "",
-                accNo: block.querySelector('.item-accno')?.value || ""
+                accNo: block.querySelector('.item-accno')?.value || "",
+                paymentDate: block.querySelector('.item-paydate')?.value || "",
+                companyName: block.querySelector('.item-company')?.value || "",
+                supplierName: block.querySelector('.item-supplier')?.value || ""
             });
         }
 
@@ -707,7 +733,10 @@ function printRequest(reqNo) {
         sumTotal += parseFloat(item.total) || 0;
         
         let detailsHtml = ``;
-        if (item.invoice) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">INV:</td><td style="color:#495057;">${item.invoice}</td></tr>`;
+        if (item.paymentDate) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">PAY DATE:</td><td style="color:#495057;">${item.paymentDate}</td></tr>`;
+        if (item.companyName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">COMPANY:</td><td style="color:#495057;">${item.companyName}</td></tr>`;
+        if (item.supplierName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">SUPPLIER:</td><td style="color:#495057;">${item.supplierName}</td></tr>`;
+        if (item.invoice) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">INV:</td><td style="color:#495057;">${item.invoice}</td></tr>`;
         if (item.department) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">DEPT:</td><td style="color:#495057;">${item.department}</td></tr>`;
         if (item.branch) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">BRANCH:</td><td style="color:#495057;">${item.branch}</td></tr>`;
         if (item.paymentMethod) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">PAYMENT:</td><td style="color:#495057;">${item.paymentMethod}</td></tr>`;
@@ -810,7 +839,7 @@ function printRequest(reqNo) {
                     </div>
                     <div class="summary-total">
                         <span>GRAND TOTAL</span>
-                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
                     </div>
                 </div>
             </div>
