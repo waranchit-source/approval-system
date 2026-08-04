@@ -273,10 +273,14 @@
                 <input type="number" step="0.01" class="form-control neon-input bg-dark text-white fw-bold item-total" readonly>
             </div>
 
-            <!-- แถวใหม่ที่เพิ่ม Company, Supplier, Payment Date -->
             <div class="col-md-4">
                 <label class="form-label text-secondary fw-semibold text-sm">Payment Date</label>
-                <input type="date" class="form-control neon-input item-paydate">
+                <div class="input-group">
+                    <input type="date" class="form-control neon-input border-end-0 item-paydate">
+                    <span class="input-group-text neon-input bg-transparent border-start-0 text-secondary" style="cursor: pointer;" onclick="this.previousElementSibling.showPicker()">
+                        <i class="fa-regular fa-calendar"></i>
+                    </span>
+                </div>
             </div>
             <div class="col-md-4">
                 <label class="form-label text-secondary fw-semibold text-sm">Company Name</label>

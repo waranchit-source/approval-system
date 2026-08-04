@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyW8vFzXLJil9pVlTKQ7PerSGT5I0bwFDVYIb8olK34JVoAQM4K02NC3Qr9t9MYY-cX/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaHleznf8SCjIi-5rOYACuyeRFNN8NPNqONkliIrsxBTuXZF9I71VyPMC9xj2CvfDP/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
@@ -159,7 +159,6 @@ async function fetchDropdownData() {
             data.branches.forEach(branch => regBranchSelect.innerHTML += `<option value="${branch}">${branch}</option>`);
         }
 
-        // Populate global datalist for banks (so user can select or type)
         const bankDatalist = document.getElementById('bankOptions');
         if (bankDatalist && data.banks) {
             bankDatalist.innerHTML = '';
@@ -281,7 +280,6 @@ function addNewItem() {
             updateItemNumbers();
         });
 
-        // Copy Payment Details from First Item
         const firstBlock = document.querySelectorAll('.item-block')[0];
         if(firstBlock) {
             block.querySelector('.item-paymethod').value = firstBlock.querySelector('.item-paymethod').value;
@@ -306,7 +304,6 @@ function addNewItem() {
     setupItemCalculations(block);
     setupPaymentLogic(block);
     
-    // Auto-fill logic for Supplier
     const supplierSelect = block.querySelector('.item-supplier');
     supplierSelect.addEventListener('change', (e) => {
         const selectedName = e.target.value;
@@ -320,7 +317,6 @@ function addNewItem() {
 
     document.getElementById('itemsContainer').appendChild(block);
     
-    // Trigger update UI for payment logic if copied
     if (itemCount > 1) {
         block.querySelector('.item-paymethod').dispatchEvent(new Event('change'));
     }
@@ -482,7 +478,7 @@ async function handleBatchSend() {
     const checkedVals = Array.from(checkedBoxes).map(cb => cb.value);
     
     if(checkedVals.length === 0) {
-        return alert("Please select at least one 'Draft' request to send.");
+        return alert("Please select at least one request to send or resend.");
     }
     
     if(!confirm(`Send ${checkedVals.length} request(s) to Approver?`)) return;
@@ -552,16 +548,12 @@ function renderDashboard(dataToRender) {
         if (req.status === 'Rejected') bClass = 'bg-danger text-white';
         if (req.status === 'Draft') bClass = 'bg-secondary text-white';
         
-        let cbHtml = `<i class="fa-solid fa-lock text-muted opacity-50"></i>`;
-        if (req.status === 'Draft') {
+        // แก้ไขเงื่อนไขการซ่อน Checkbox ให้แสดงผลทุกสถานะ ยกเว้น Completed
+        let cbHtml = `<i class="fa-solid fa-check text-success opacity-75"></i>`;
+        if (req.status !== 'Completed') {
             cbHtml = `<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="${req.reqNo}">`;
         }
 
-        let resendBtn = '';
-        if (req.status.indexOf('Pending') > -1 && (currentUser.role === 'Admin' || req.requestor === currentUser.name)) {
-            resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
-        }
-        
         let reviewBtn = '';
         if (currentUser.role === 'Admin' || (req.status.indexOf('Pending') > -1)) {
             reviewBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal('${req.reqNo}')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>`;
@@ -580,38 +572,11 @@ function renderDashboard(dataToRender) {
             <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             <td class="text-center" style="white-space: nowrap;">
                 <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
-                ${resendBtn}
                 ${reviewBtn}
             </td>
         `;
         tbody.appendChild(tr);
     });
-}
-
-async function resendRequest(reqNo, btnEl) {
-    const originalText = btnEl.innerHTML;
-    btnEl.disabled = true;
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-    
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'resendRequest', reqNo: reqNo }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const text = await response.text();
-        const result = JSON.parse(text);
-        if (result.status === 'success') {
-            alert('Email resent successfully for ' + reqNo);
-        } else {
-            alert('Error: ' + result.message);
-        }
-    } catch (error) {
-        alert('Failed to resend email.');
-    } finally {
-        btnEl.disabled = false;
-        btnEl.innerHTML = originalText;
-    }
 }
 
 function openReviewModal(reqNo) {
@@ -732,8 +697,18 @@ function printRequest(reqNo) {
         sumWht += parseFloat(item.wht) || 0;
         sumTotal += parseFloat(item.total) || 0;
         
+        // แก้ไขการฟอร์แมตวันที่ในหน้า PDF ให้เป็นแค่ DD/MM/YYYY
+        let formattedPayDate = item.paymentDate;
+        if(formattedPayDate && formattedPayDate.indexOf('T') > -1) {
+            let datePart = formattedPayDate.split('T')[0];
+            let parts = datePart.split('-'); 
+            if(parts.length === 3) {
+                formattedPayDate = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+            }
+        }
+        
         let detailsHtml = ``;
-        if (item.paymentDate) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">PAY DATE:</td><td style="color:#495057;">${item.paymentDate}</td></tr>`;
+        if (formattedPayDate) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">PAY DATE:</td><td style="color:#495057;">${formattedPayDate}</td></tr>`;
         if (item.companyName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">COMPANY:</td><td style="color:#495057;">${item.companyName}</td></tr>`;
         if (item.supplierName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">SUPPLIER:</td><td style="color:#495057;">${item.supplierName}</td></tr>`;
         if (item.invoice) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">INV:</td><td style="color:#495057;">${item.invoice}</td></tr>`;
