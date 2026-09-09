@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaHleznf8SCjIi-5rOYACuyeRFNN8NPNqONkliIrsxBTuXZF9I71VyPMC9xj2CvfDP/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzumUN7VkqddYI7Oceh0t4IDecOn0Ofl03I_MNNL08-iocG68W2Jxd23QtdGg-mhyNF/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
