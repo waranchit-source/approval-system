@@ -93,7 +93,7 @@
         </div>
         <ul class="nav flex-column mb-auto side-menu">
             <li class="nav-item">
-                <a href="#" class="nav-link active sidemenu-btn" data-target="formSection">
+                <a href="#" class="nav-link active sidemenu-btn" data-target="formSection" onclick="resetCreateForm()">
                     <i class="fa-solid fa-pen-nib"></i> <span>New Request</span>
                 </a>
             </li>
@@ -119,6 +119,7 @@
         <div id="formSection" class="content-section">
             <div class="glass-panel">
                 <form id="approvalForm">
+                    <input type="hidden" id="editReqNo">
                     <div class="mb-4">
                         <label class="form-label fw-bold text-light d-block mb-3">Document Type</label>
                         <div class="form-check form-check-inline">
@@ -250,6 +251,7 @@
             <div class="col-md-6">
                 <label class="form-label text-secondary fw-semibold text-sm">Product Photo <small>(Max 2MB)</small></label>
                 <input type="file" class="form-control neon-input item-photo" accept="image/*">
+                <input type="hidden" class="item-existing-file">
             </div>
             <div class="col-md-6">
                 <label class="form-label text-secondary fw-semibold text-sm">Image URL</label>
