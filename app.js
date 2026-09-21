@@ -53,26 +53,38 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnBatchSend')?.addEventListener('click', handleBatchSend);
     
     document.querySelectorAll('.sidemenu-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            
-            document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
-            const targetId = e.currentTarget.getAttribute('data-target');
-            if(document.getElementById(targetId)) {
-                document.getElementById(targetId).style.display = 'block';
-                if(targetId === 'dashboardSection') {
-                    document.querySelector('.page-title').innerText = 'Dashboard';
-                    fetchDashboard();
-                } else {
-                    document.querySelector('.page-title').innerText = 'Create Request';
+        if(btn.id !== 'btnLoadDashboard') {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                
+                document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+                const targetId = e.currentTarget.getAttribute('data-target');
+                if(document.getElementById(targetId)) {
+                    document.getElementById(targetId).style.display = 'block';
+                    if(targetId === 'formSection') {
+                        resetCreateForm();
+                    }
                 }
-            }
-            if(window.innerWidth <= 768) {
-                document.getElementById('sidebarMenu').classList.remove('show');
-            }
-        });
+                if(window.innerWidth <= 768) {
+                    document.getElementById('sidebarMenu').classList.remove('show');
+                }
+            });
+        }
+    });
+
+    document.getElementById('btnLoadDashboard')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        document.getElementById('dashboardSection').style.display = 'block';
+        document.querySelector('.page-title').innerText = 'Dashboard';
+        fetchDashboard();
+        if(window.innerWidth <= 768) {
+            document.getElementById('sidebarMenu').classList.remove('show');
+        }
     });
 
     document.getElementById('btnRefreshDashboard')?.addEventListener('click', fetchDashboard);
@@ -123,13 +135,13 @@ function showAppScreen() {
     document.getElementById('appContainer').style.display = 'flex';
     
     const sidebarName = document.getElementById('sidebarUserName');
-    if(sidebarName) sidebarName.innerText = currentUser.name || '';
+    if(sidebarName) sidebarName.innerText = currentUser.name ? currentUser.name : '';
     
     const roleBadge = document.getElementById('userRoleBadge');
-    if(roleBadge) roleBadge.innerText = currentUser.role || 'User';
+    if(roleBadge) roleBadge.innerText = currentUser.role ? currentUser.role : 'User';
     
     const reqEmail = document.getElementById('requestorEmail');
-    if(reqEmail) reqEmail.value = currentUser.name || '';
+    if(reqEmail) reqEmail.value = currentUser.name ? currentUser.name : '';
 }
 
 function handleLogout() {
@@ -150,19 +162,19 @@ async function fetchDropdownData() {
         const approverSelect = document.getElementById('approverEmail');
         if(approverSelect) {
             approverSelect.innerHTML = '<option value="">Select Approver...</option>';
-            data.emails.forEach(email => approverSelect.innerHTML += `<option value="${email}">${email}</option>`);
+            data.emails.forEach(email => approverSelect.innerHTML += '<option value="' + email + '">' + email + '</option>');
         }
         
         const regBranchSelect = document.getElementById('regBranch');
         if(regBranchSelect) {
             regBranchSelect.innerHTML = '<option value="">Select Branch...</option>';
-            data.branches.forEach(branch => regBranchSelect.innerHTML += `<option value="${branch}">${branch}</option>`);
+            data.branches.forEach(branch => regBranchSelect.innerHTML += '<option value="' + branch + '">' + branch + '</option>');
         }
 
         const bankDatalist = document.getElementById('bankOptions');
         if (bankDatalist && data.banks) {
             bankDatalist.innerHTML = '';
-            data.banks.forEach(bank => bankDatalist.innerHTML += `<option value="${bank}">`);
+            data.banks.forEach(bank => bankDatalist.innerHTML += '<option value="' + bank + '">');
         }
 
         if (itemCount === 0) addNewItem();
@@ -263,6 +275,16 @@ async function handleRegister(e) {
     }
 }
 
+function resetCreateForm() {
+    document.getElementById('editReqNo').value = '';
+    document.querySelector('.page-title').innerText = 'Create Request';
+    document.getElementById('approvalForm').reset();
+    document.getElementById('itemsContainer').innerHTML = '';
+    if(currentUser) document.getElementById('requestorEmail').value = currentUser.name;
+    itemCount = 0;
+    addNewItem();
+}
+
 function addNewItem() {
     const template = document.getElementById('itemTemplate');
     if(!template) return;
@@ -324,8 +346,8 @@ function addNewItem() {
 
 function populateSelect(element, dataArray, defaultText) {
     if(!element) return;
-    element.innerHTML = `<option value="">${defaultText}</option>`;
-    dataArray.forEach(val => element.innerHTML += `<option value="${val}">${val}</option>`);
+    element.innerHTML = '<option value="">' + defaultText + '</option>';
+    dataArray.forEach(val => element.innerHTML += '<option value="' + val + '">' + val + '</option>');
 }
 
 function updateItemNumbers() {
@@ -341,13 +363,13 @@ function setupItemCalculations(block) {
     const totalInput = block.querySelector('.item-total');
 
     function calc() {
-        let amt = parseFloat(amtInput.value) || 0;
-        let vat = parseFloat(vatInput.value) || 0;
-        let wht = parseFloat(whtInput.value) || 0;
+        let amt = parseFloat(amtInput.value) ? parseFloat(amtInput.value) : 0;
+        let vat = parseFloat(vatInput.value) ? parseFloat(vatInput.value) : 0;
+        let wht = parseFloat(whtInput.value) ? parseFloat(whtInput.value) : 0;
         totalInput.value = (amt + vat - wht).toFixed(2);
     }
     amtInput.addEventListener('input', () => {
-        let amt = parseFloat(amtInput.value) || 0;
+        let amt = parseFloat(amtInput.value) ? parseFloat(amtInput.value) : 0;
         vatInput.value = (amt * 0.07).toFixed(2);
         calc();
     });
@@ -394,54 +416,62 @@ async function handleFormSubmit(e) {
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Saving (Draft)...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Saving...';
     statusMsg.innerText = '';
     
     try {
+        let selectedDocType = 'Payment Voucher';
+        const docTypeChecked = document.querySelector('input[name="docType"]:checked');
+        if(docTypeChecked) selectedDocType = docTypeChecked.value;
+
         const reqData = {
+            editReqNo: document.getElementById('editReqNo').value,
             requestorEmail: document.getElementById('requestorEmail').value,
             approverEmail: document.getElementById('approverEmail').value,
-            docType: document.querySelector('input[name="docType"]:checked').value,
+            docType: selectedDocType,
             items: []
         };
 
         const blocks = document.querySelectorAll('.item-block');
         for (let i = 0; i < blocks.length; i++) {
             const block = blocks[i];
-            const desc = block.querySelector('.item-desc')?.value;
+            const descInput = block.querySelector('.item-desc');
+            const desc = descInput ? descInput.value : '';
             if(!desc) throw new Error("Please fill Description in Item #" + (i + 1));
 
             let photoData = null;
             const fileInput = block.querySelector('.item-photo');
             if (fileInput && fileInput.files.length > 0) {
                 const file = fileInput.files[0];
-                if (file.size > 2 * 1024 * 1024) throw new Error(`File in Item #${i+1} is too large (Max 2MB)`);
+                if (file.size > 2 * 1024 * 1024) throw new Error("File in Item #" + (i+1) + " is too large (Max 2MB)");
+                let fileBytes = await getBase64(file);
                 photoData = {
                     filename: file.name,
                     mimeType: file.type,
-                    bytes: await getBase64(file)
+                    bytes: fileBytes
                 };
             }
 
             reqData.items.push({
                 description: desc,
-                amount: block.querySelector('.item-amt')?.value || 0,
-                vat: block.querySelector('.item-vat')?.value || 0,
-                wht: block.querySelector('.item-wht')?.value || 0,
-                total: block.querySelector('.item-total')?.value || 0,
+                amount: block.querySelector('.item-amt') ? block.querySelector('.item-amt').value : 0,
+                vat: block.querySelector('.item-vat') ? block.querySelector('.item-vat').value : 0,
+                wht: block.querySelector('.item-wht') ? block.querySelector('.item-wht').value : 0,
+                total: block.querySelector('.item-total') ? block.querySelector('.item-total').value : 0,
                 productPhoto: photoData,
-                imageURL: block.querySelector('.item-imageurl')?.value || "",
-                invoice: block.querySelector('.item-inv')?.value || "",
-                branch: block.querySelector('.item-branch')?.value || "",
-                department: block.querySelector('.item-dept')?.value || "",
-                remarks: block.querySelector('.item-remark')?.value || "",
-                paymentMethod: block.querySelector('.item-paymethod')?.value || "",
-                bank: block.querySelector('.item-bank')?.value || "",
-                accName: block.querySelector('.item-accname')?.value || "",
-                accNo: block.querySelector('.item-accno')?.value || "",
-                paymentDate: block.querySelector('.item-paydate')?.value || "",
-                companyName: block.querySelector('.item-company')?.value || "",
-                supplierName: block.querySelector('.item-supplier')?.value || ""
+                existingFileUrl: block.querySelector('.item-existing-file') ? block.querySelector('.item-existing-file').value : "",
+                imageURL: block.querySelector('.item-imageurl') ? block.querySelector('.item-imageurl').value : "",
+                invoice: block.querySelector('.item-inv') ? block.querySelector('.item-inv').value : "",
+                branch: block.querySelector('.item-branch') ? block.querySelector('.item-branch').value : "",
+                department: block.querySelector('.item-dept') ? block.querySelector('.item-dept').value : "",
+                remarks: block.querySelector('.item-remark') ? block.querySelector('.item-remark').value : "",
+                paymentMethod: block.querySelector('.item-paymethod') ? block.querySelector('.item-paymethod').value : "",
+                bank: block.querySelector('.item-bank') ? block.querySelector('.item-bank').value : "",
+                accName: block.querySelector('.item-accname') ? block.querySelector('.item-accname').value : "",
+                accNo: block.querySelector('.item-accno') ? block.querySelector('.item-accno').value : "",
+                paymentDate: block.querySelector('.item-paydate') ? block.querySelector('.item-paydate').value : "",
+                companyName: block.querySelector('.item-company') ? block.querySelector('.item-company').value : "",
+                supplierName: block.querySelector('.item-supplier') ? block.querySelector('.item-supplier').value : ""
             });
         }
 
@@ -454,14 +484,11 @@ async function handleFormSubmit(e) {
         const result = JSON.parse(text);
         
         if (result.status === 'success') {
-            statusMsg.innerText = `Saved ${result.reqNo} as Draft successfully!`;
+            statusMsg.innerText = "Success! Saved " + result.reqNo;
             statusMsg.className = 'fw-bold text-success';
-            document.getElementById('approvalForm').reset();
-            document.getElementById('itemsContainer').innerHTML = '';
-            document.getElementById('requestorEmail').value = currentUser.name;
-            addNewItem();
+            resetCreateForm();
         } else {
-            throw new Error(result.message || 'Server error.');
+            throw new Error(result.message ? result.message : 'Server error.');
         }
     } catch (error) {
         console.error(error);
@@ -481,7 +508,7 @@ async function handleBatchSend() {
         return alert("Please select at least one request to send or resend.");
     }
     
-    if(!confirm(`Send ${checkedVals.length} request(s) to Approver?`)) return;
+    if(!confirm("Send " + checkedVals.length + " request(s) to Approver?")) return;
 
     const btn = document.getElementById('btnBatchSend');
     const originalHtml = btn.innerHTML;
@@ -510,6 +537,58 @@ async function handleBatchSend() {
         btn.disabled = false;
     }
 }
+
+window.editRequest = function(reqNo) {
+    const req = window.dashboardData.find(r => r.reqNo === reqNo);
+    if(!req) return;
+
+    document.getElementById('editReqNo').value = reqNo;
+    document.querySelector('.page-title').innerText = 'Edit Request: ' + reqNo;
+    
+    const docRadios = document.querySelectorAll('input[name="docType"]');
+    docRadios.forEach(r => {
+        if(r.value === req.docType) r.checked = true;
+    });
+    
+    document.getElementById('approverEmail').value = req.approver ? req.approver : "";
+    document.getElementById('itemsContainer').innerHTML = '';
+    itemCount = 0;
+    
+    req.items.forEach(item => {
+        addNewItem(); 
+        const blocks = document.querySelectorAll('.item-block');
+        const block = blocks[blocks.length - 1];
+        
+        block.querySelector('.item-desc').value = item.description ? item.description : "";
+        block.querySelector('.item-existing-file').value = item.productPhoto ? item.productPhoto : ""; 
+        block.querySelector('.item-imageurl').value = item.imageURL ? item.imageURL : "";
+        block.querySelector('.item-amt').value = item.amount ? item.amount : 0;
+        block.querySelector('.item-vat').value = item.vat ? item.vat : 0;
+        block.querySelector('.item-wht').value = item.wht ? item.wht : 0;
+        block.querySelector('.item-total').value = item.total ? item.total : 0;
+        
+        if(item.paymentDate && item.paymentDate.indexOf('T') > -1) {
+            block.querySelector('.item-paydate').value = item.paymentDate.split('T')[0];
+        }
+        
+        block.querySelector('.item-company').value = item.companyName ? item.companyName : "";
+        block.querySelector('.item-supplier').value = item.supplierName ? item.supplierName : "";
+        block.querySelector('.item-inv').value = item.invoice ? item.invoice : "";
+        block.querySelector('.item-branch').value = item.branch ? item.branch : "";
+        block.querySelector('.item-dept').value = item.department ? item.department : "";
+        block.querySelector('.item-remark').value = item.remarks ? item.remarks : "";
+        block.querySelector('.item-paymethod').value = item.paymentMethod ? item.paymentMethod : "";
+        block.querySelector('.item-paymethod').dispatchEvent(new Event('change'));
+        block.querySelector('.item-bank').value = item.bank ? item.bank : "";
+        block.querySelector('.item-accname').value = item.accName ? item.accName : "";
+        block.querySelector('.item-accno').value = item.accNo ? item.accNo : "";
+    });
+    
+    document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.sidemenu-btn[data-target="formSection"]').classList.add('active');
+    document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+    document.getElementById('formSection').style.display = 'block';
+};
 
 async function fetchDashboard() {
     const tbody = document.getElementById('dashboardTableBody');
@@ -548,65 +627,38 @@ function renderDashboard(dataToRender) {
         if (req.status === 'Rejected') bClass = 'bg-danger text-white';
         if (req.status === 'Draft') bClass = 'bg-secondary text-white';
         
-        let cbHtml = `<i class="fa-solid fa-check text-success opacity-75"></i>`;
+        let cbHtml = '<i class="fa-solid fa-check text-success opacity-75"></i>';
         if (req.status !== 'Completed') {
-            cbHtml = `<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="${req.reqNo}">`;
+            cbHtml = '<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="' + req.reqNo + '" />';
         }
 
-        let resendBtn = '';
-        if (req.status.indexOf('Pending') > -1 && (currentUser.role === 'Admin' || req.requestor === currentUser.name)) {
-            resendBtn = `<button class="btn btn-sm btn-outline-info rounded-pill ms-1" onclick="resendRequest('${req.reqNo}', this)" title="Resend Email"><i class="fa-solid fa-paper-plane"></i></button>`;
+        let editBtn = '';
+        if (req.status === 'Draft' || req.status.indexOf('Pending') > -1) {
+            editBtn = '<button class="btn btn-sm btn-outline-primary rounded-pill ms-1" onclick="editRequest(\'' + req.reqNo + '\')" title="Edit Request"><i class="fa-solid fa-pen"></i></button>';
         }
-        
+
         let reviewBtn = '';
         if (currentUser.role === 'Admin' || (req.status.indexOf('Pending') > -1)) {
-            reviewBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal('${req.reqNo}')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>`;
+            reviewBtn = '<button class="btn btn-sm btn-outline-warning rounded-pill ms-1" onclick="openReviewModal(\'' + req.reqNo + '\')" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>';
         }
         
+        let docTypeStr = req.docType ? req.docType : '-';
+        let totalFmt = parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2});
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="text-center">${cbHtml}</td>
-            <td class="fw-bold ig-text">
-                ${req.reqNo}<br>
-                <small class="text-muted" style="font-size:10px;">${req.docType || '-'}</small>
-            </td>
-            <td class="text-light">${date}</td>
-            <td class="text-light">${req.requestor}</td>
-            <td><span class="badge ${bClass} rounded-pill px-3">${req.status}</span></td>
-            <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-            <td class="text-center" style="white-space: nowrap;">
-                <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
-                ${resendBtn}${reviewBtn}
-            </td>
-        `;
+        tr.innerHTML = 
+            '<td class="text-center">' + cbHtml + '</td>' +
+            '<td class="fw-bold ig-text">' + req.reqNo + '<br /><small class="text-muted" style="font-size:10px;">' + docTypeStr + '</small></td>' +
+            '<td class="text-light">' + date + '</td>' +
+            '<td class="text-light">' + req.requestor + '</td>' +
+            '<td><span class="badge ' + bClass + ' rounded-pill px-3">' + req.status + '</span></td>' +
+            '<td class="text-end fw-bold text-light">' + totalFmt + '</td>' +
+            '<td class="text-center" style="white-space: nowrap;">' +
+                '<button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest(\'' + req.reqNo + '\')" title="Print PDF"><i class="fa-solid fa-print"></i></button>' +
+                editBtn + reviewBtn +
+            '</td>';
         tbody.appendChild(tr);
     });
-}
-
-async function resendRequest(reqNo, btnEl) {
-    const originalText = btnEl.innerHTML;
-    btnEl.disabled = true;
-    btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-    
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'resendRequest', reqNo: reqNo }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const text = await response.text();
-        const result = JSON.parse(text);
-        if (result.status === 'success') {
-            alert('Email resent successfully for ' + reqNo);
-        } else {
-            alert('Error: ' + result.message);
-        }
-    } catch (error) {
-        alert('Failed to resend email.');
-    } finally {
-        btnEl.disabled = false;
-        btnEl.innerHTML = originalText;
-    }
 }
 
 function openReviewModal(reqNo) {
@@ -623,28 +675,28 @@ function openReviewModal(reqNo) {
     req.items.forEach((item, index) => {
         let actionHtml = '';
         if (item.status.indexOf('Pending') > -1) {
-            actionHtml = `
-                <label class="me-2 text-success"><input type="radio" name="item_${index}" value="Approve" class="form-check-input" required> Approve</label>
-                <label class="text-danger"><input type="radio" name="item_${index}" value="Reject" class="form-check-input" required> Reject</label>
-            `;
+            actionHtml = '<div>' +
+                '<label class="me-2 text-success"><input type="radio" name="item_' + index + '" value="Approve" class="form-check-input" required /> Approve</label>' +
+                '<label class="text-danger"><input type="radio" name="item_' + index + '" value="Reject" class="form-check-input" required /> Reject</label>' +
+            '</div>';
         } else {
             let bClass = item.status === 'Completed' ? 'bg-success' : 'bg-danger';
-            actionHtml = `<span class="badge ${bClass}">${item.status}</span>`;
+            actionHtml = '<span class="badge ' + bClass + '">' + item.status + '</span>';
         }
 
-        tbody.innerHTML += `
-            <tr>
-                <td class="text-center fw-bold">${index + 1}</td>
-                <td>
-                    <div class="fw-bold">${item.description}</div>
-                    <small class="text-muted">Inv: ${item.invoice \vert{}\vert{} '-'} \vert{} Dept:${item.department}</small>
-                </td>
-                <td class="text-end fw-bold">${parseFloat(item.total).toLocaleString('en-US')}</td>
-                <td class="text-center" style="white-space:nowrap;">
-                    ${actionHtml}
-                </td>
-            </tr>
-        `;
+        let invText = item.invoice ? item.invoice : '-';
+        let deptText = item.department ? item.department : '-';
+        let totalFmt = parseFloat(item.total).toLocaleString('en-US');
+
+        tbody.innerHTML += '<tr>' +
+            '<td class="text-center fw-bold">' + (index + 1) + '</td>' +
+            '<td>' +
+                '<div class="fw-bold">' + item.description + '</div>' +
+                '<small class="text-muted">Inv: ' + invText + ' &nbsp;|&nbsp; Dept: ' + deptText + '</small>' +
+            '</td>' +
+            '<td class="text-end fw-bold">' + totalFmt + '</td>' +
+            '<td class="text-center" style="white-space:nowrap;">' + actionHtml + '</td>' +
+        '</tr>';
     });
     
     approvalModalInstance.show();
@@ -662,7 +714,7 @@ async function handleModalSubmit(e) {
     
     const selections = [];
     req.items.forEach((item, index) => {
-        const checkedInput = document.querySelector(`input[name="item_${index}"]:checked`);
+        const checkedInput = document.querySelector('input[name="item_' + index + '"]:checked');
         if (checkedInput) {
             selections.push(checkedInput.value);
         } else {
@@ -732,125 +784,138 @@ function printRequest(reqNo) {
             let datePart = formattedPayDate.split('T')[0];
             let parts = datePart.split('-'); 
             if(parts.length === 3) {
-                formattedPayDate = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+                formattedPayDate = parts[2] + '/' + parts[1] + '/' + parts[0]; 
             }
         }
         
-        let detailsHtml = ``;
-        if (formattedPayDate) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">PAY DATE:</td><td style="color:#495057;">${formattedPayDate}</td></tr>`;
-        if (item.companyName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">COMPANY:</td><td style="color:#495057;">${item.companyName}</td></tr>`;
-        if (item.supplierName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">SUPPLIER:</td><td style="color:#495057;">${item.supplierName}</td></tr>`;
-        if (item.invoice) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">INV:</td><td style="color:#495057;">${item.invoice}</td></tr>`;
-        if (item.department) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">DEPT:</td><td style="color:#495057;">${item.department}</td></tr>`;
-        if (item.branch) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">BRANCH:</td><td style="color:#495057;">${item.branch}</td></tr>`;
-        if (item.paymentMethod) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">PAYMENT:</td><td style="color:#495057;">${item.paymentMethod}</td></tr>`;
-        if (item.bank) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">BANK:</td><td style="color:#495057;">${item.bank}</td></tr>`;
-        if (item.accName) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">A/C NAME:</td><td style="color:#495057;">${item.accName}</td></tr>`;
-        if (item.accNo) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">A/C NO:</td><td style="color:#495057;">${item.accNo}</td></tr>`;
-        if (item.remarks) detailsHtml += `<tr><td style="color:#adb5bd; padding-right:5px;">REMARKS:</td><td style="color:#495057;">${item.remarks}</td></tr>`;
+        let detailsHtml = '';
+        if (formattedPayDate) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px; width:60px;">PAY DATE:</td><td style="color:#495057;">' + formattedPayDate + '</td></tr>';
+        if (item.companyName) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">COMPANY:</td><td style="color:#495057;">' + item.companyName + '</td></tr>';
+        if (item.supplierName) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">SUPPLIER:</td><td style="color:#495057;">' + item.supplierName + '</td></tr>';
+        if (item.invoice) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">INV:</td><td style="color:#495057;">' + item.invoice + '</td></tr>';
+        if (item.department) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">DEPT:</td><td style="color:#495057;">' + item.department + '</td></tr>';
+        if (item.branch) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">BRANCH:</td><td style="color:#495057;">' + item.branch + '</td></tr>';
+        if (item.paymentMethod) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">PAYMENT:</td><td style="color:#495057;">' + item.paymentMethod + '</td></tr>';
+        if (item.bank) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">BANK:</td><td style="color:#495057;">' + item.bank + '</td></tr>';
+        if (item.accName) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">A/C NAME:</td><td style="color:#495057;">' + item.accName + '</td></tr>';
+        if (item.accNo) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">A/C NO:</td><td style="color:#495057;">' + item.accNo + '</td></tr>';
+        if (item.remarks) detailsHtml += '<tr><td style="color:#adb5bd; padding-right:5px;">REMARKS:</td><td style="color:#495057;">' + item.remarks + '</td></tr>';
 
-        itemsRows += `
-            <tr>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057; text-align: center;">${index + 1}</td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">
-                    <div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">${item.description}</div>
-                    <table style="width:100%; border:none; margin:0; font-size:10px; line-height:1.2;">
-                        ${detailsHtml}
-                    </table>
-                </td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">${parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 700; color: #212529;">${parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                <td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: center; vertical-align: top; font-weight: 700; color: ${item.status === 'Completed' ? '#28a745' : '#f09433'}">${item.status}</td>
-            </tr>
-        `;
+        let amtFmt = parseFloat(item.amount).toLocaleString('en-US', {minimumFractionDigits: 2});
+        let vatFmt = parseFloat(item.vat).toLocaleString('en-US', {minimumFractionDigits: 2});
+        let whtFmt = parseFloat(item.wht).toLocaleString('en-US', {minimumFractionDigits: 2});
+        let totFmt = parseFloat(item.total).toLocaleString('en-US', {minimumFractionDigits: 2});
+        let statusColor = item.status === 'Completed' ? '#28a745' : (item.status === 'Rejected' ? '#dc3545' : '#f09433');
+
+        itemsRows += 
+            '<tr>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057; text-align: center;">' + (index + 1) + '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">' +
+                    '<div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">' + item.description + '</div>' +
+                    '<table style="width:100%; border:none; margin:0; font-size:10px; line-height:1.2;">' + detailsHtml + '</table>' +
+                '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + amtFmt + '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + vatFmt + '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + whtFmt + '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 700; color: #212529;">' + totFmt + '</td>' +
+                '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: center; vertical-align: top; font-weight: 700; color: ' + statusColor + '">' + item.status + '</td>' +
+            '</tr>';
     });
 
+    let sumAmtFmt = sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2});
+    let sumVatFmt = sumVat.toLocaleString('en-US', {minimumFractionDigits: 2});
+    let sumWhtFmt = sumWht.toLocaleString('en-US', {minimumFractionDigits: 2});
+    let sumTotalFmt = sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2});
+    
+    let docTypeStr = req.docType ? req.docType : 'Payment Voucher';
+    let approverStr = req.approver ? req.approver : '-';
+    let badgeCls = req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : (req.status === 'Pending' ? 'status-pending' : 'status-partial'));
+
     const printWindow = window.open('', '_blank');
-    const html = `
-        <html><head><title>Print Request ${reqNo}</title>
-        <style>
-            @media print { 
-                @page { margin: 15mm; size: A4 portrait; }
-                body { -webkit-print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }
-                .summary-wrapper { page-break-inside: avoid; }
-            }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #212529; max-width: 210mm; margin: 0 auto; }
-            .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; }
-            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-            .details-box { background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; }
-            .details-box p { margin: 0 0 5px 0; font-size: 11px; }
-            .details-box p:last-child { margin: 0; }
-            .status-badge { font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 10px; }
-            .status-completed { background-color: #d1e7dd; color: #0f5132; }
-            .status-rejected { background-color: #f8d7da; color: #842029; }
-            .status-pending { background-color: #fff3cd; color: #664d03; }
-            .status-partial { background-color: #e2e3e5; color: #41464b; }
-            .main-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
-            .main-table th { color: #adb5bd; border-bottom: 2px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }
-            .main-table td table td { padding: 2px 0; border: none; }
-            .summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }
-            .summary-box { width: 230px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
-            .summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }
-            .summary-total { display: flex; justify-content: space-between; padding: 10px 12px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }
-            .total-amount-color { color: #dc3545; }
-        </style></head><body>
-            <div class="header">
-                <div>
-                    <h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>
-                    <h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">${reqNo} <span style="font-size: 12px; color: #adb5bd;">(${req.docType || 'Payment Voucher'})</span></h2>
-                </div>
-            </div>
+    const html = 
+        '<!DOCTYPE html>' +
+        '<html><head><title>Print Request ' + reqNo + '</title>' +
+        '<style>' +
+            '@media print { ' +
+                '@page { margin: 15mm; size: A4 portrait; }' +
+                'body { -webkit-print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }' +
+                '.summary-wrapper { page-break-inside: avoid; }' +
+            '}' +
+            'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #212529; max-width: 210mm; margin: 0 auto; }' +
+            '.header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; }' +
+            '.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }' +
+            '.details-box { background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; }' +
+            '.details-box p { margin: 0 0 5px 0; font-size: 11px; }' +
+            '.details-box p:last-child { margin: 0; }' +
+            '.status-badge { font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 10px; }' +
+            '.status-completed { background-color: #d1e7dd; color: #0f5132; }' +
+            '.status-rejected { background-color: #f8d7da; color: #842029; }' +
+            '.status-pending { background-color: #fff3cd; color: #664d03; }' +
+            '.status-partial { background-color: #e2e3e5; color: #41464b; }' +
+            '.main-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }' +
+            '.main-table th { color: #adb5bd; border-bottom: 2px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }' +
+            '.main-table td table td { padding: 2px 0; border: none; }' +
+            '.summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }' +
+            '.summary-box { width: 230px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }' +
+            '.summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }' +
+            '.summary-total { display: flex; justify-content: space-between; padding: 10px 12px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }' +
+            '.total-amount-color { color: #dc3545; }' +
+        '</style></head><body>' +
+            '<div class="header">' +
+                '<div>' +
+                    '<h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>' +
+                    '<h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">' + reqNo + ' <span style="font-size: 12px; color: #adb5bd;">(' + docTypeStr + ')</span></h2>' +
+                '</div>' +
+            '</div>' +
             
-            <div class="details-grid">
-                <div class="details-box">
-                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Requestor:</span> <strong>${req.requestor}</strong></p>
-                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Date:</span> <strong>${date}</strong></p>
-                </div>
-                <div class="details-box">
-                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Overall Status:</span> <span class="status-badge ${req.status === 'Completed' ? 'status-completed' : (req.status === 'Rejected' ? 'status-rejected' : (req.status === 'Pending' ? 'status-pending' : 'status-partial'))}">${req.status}</span></p>
-                    <p><span style="color:#6c757d; display:inline-block; width:80px;">Approved By:</span> <strong>${req.approver || '-'}</strong></p>
-                </div>
-            </div>
+            '<div class="details-grid">' +
+                '<div class="details-box">' +
+                    '<p><span style="color:#6c757d; display:inline-block; width:80px;">Requestor:</span> <strong>' + req.requestor + '</strong></p>' +
+                    '<p><span style="color:#6c757d; display:inline-block; width:80px;">Date:</span> <strong>' + date + '</strong></p>' +
+                '</div>' +
+                '<div class="details-box">' +
+                    '<p><span style="color:#6c757d; display:inline-block; width:80px;">Overall Status:</span> <span class="status-badge ' + badgeCls + '">' + req.status + '</span></p>' +
+                    '<p><span style="color:#6c757d; display:inline-block; width:80px;">Approved By:</span> <strong>' + approverStr + '</strong></p>' +
+                '</div>' +
+            '</div>' +
             
-            <table class="main-table">
-                <tr>
-                    <th style="text-align: center; width: 5%;">#</th>
-                    <th style="text-align: left; width: 40%;">Description & Details</th>
-                    <th style="text-align: right; width: 11%;">Amount</th>
-                    <th style="text-align: right; width: 11%;">VAT(7%)</th>
-                    <th style="text-align: right; width: 11%;">WHT</th>
-                    <th style="text-align: right; width: 12%;">Total</th>
-                    <th style="text-align: center; width: 10%;">Item Status</th>
-                </tr>
-                ${itemsRows}
-            </table>
+            '<table class="main-table">' +
+                '<tr>' +
+                    '<th style="text-align: center; width: 5%;">#</th>' +
+                    '<th style="text-align: left; width: 40%;">Description & Details</th>' +
+                    '<th style="text-align: right; width: 11%;">Amount</th>' +
+                    '<th style="text-align: right; width: 11%;">VAT(7%)</th>' +
+                    '<th style="text-align: right; width: 11%;">WHT</th>' +
+                    '<th style="text-align: right; width: 12%;">Total</th>' +
+                    '<th style="text-align: center; width: 10%;">Item Status</th>' +
+                '</tr>' +
+                itemsRows +
+            '</table>' +
             
-            <div class="summary-wrapper">
-                <div class="summary-box">
-                    <div class="summary-row">
-                        <span>Amount (Excl. VAT)</span>
-                        <span style="font-weight: 600;">${sumAmt.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                    </div>
-                    <div class="summary-row">
-                        <span>VAT (7%)</span>
-                        <span style="font-weight: 600;">${sumVat.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                    </div>
-                    <div class="summary-row">
-                        <span>Withholding Tax</span>
-                        <span style="font-weight: 600;">${sumWht.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                    </div>
-                    <div class="summary-total">
-                        <span>GRAND TOTAL</span>
-                        <span class="total-amount-color">${sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2})} THB</span>
-                    </div>
-                </div>
-            </div>
+            '<div class="summary-wrapper">' +
+                '<div class="summary-box">' +
+                    '<div class="summary-row">' +
+                        '<span>Amount (Excl. VAT)</span>' +
+                        '<span style="font-weight: 600;">' + sumAmtFmt + '</span>' +
+                    '</div>' +
+                    '<div class="summary-row">' +
+                        '<span>VAT (7%)</span>' +
+                        '<span style="font-weight: 600;">' + sumVatFmt + '</span>' +
+                    '</div>' +
+                    '<div class="summary-row">' +
+                        '<span>Withholding Tax</span>' +
+                        '<span style="font-weight: 600;">' + sumWhtFmt + '</span>' +
+                    '</div>' +
+                    '<div class="summary-total">' +
+                        '<span>GRAND TOTAL</span>' +
+                        '<span class="total-amount-color">' + sumTotalFmt + ' THB</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
             
-            <script>window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
-        </body></html>
-    `;
+            '<script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); }<\\/script>' +
+        '</body></html>';
+        
     printWindow.document.write(html);
     printWindow.document.close();
 }
