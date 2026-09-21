@@ -53,26 +53,38 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnBatchSend')?.addEventListener('click', handleBatchSend);
     
     document.querySelectorAll('.sidemenu-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            
-            document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
-            const targetId = e.currentTarget.getAttribute('data-target');
-            if(document.getElementById(targetId)) {
-                document.getElementById(targetId).style.display = 'block';
-                if(targetId === 'dashboardSection') {
-                    document.querySelector('.page-title').innerText = 'Dashboard';
-                    fetchDashboard();
-                } else {
-                    document.querySelector('.page-title').innerText = 'Create Request';
+        if(btn.id !== 'btnLoadDashboard') {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                
+                document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+                const targetId = e.currentTarget.getAttribute('data-target');
+                if(document.getElementById(targetId)) {
+                    document.getElementById(targetId).style.display = 'block';
+                    if(targetId === 'formSection') {
+                        resetCreateForm();
+                    }
                 }
-            }
-            if(window.innerWidth <= 768) {
-                document.getElementById('sidebarMenu').classList.remove('show');
-            }
-        });
+                if(window.innerWidth <= 768) {
+                    document.getElementById('sidebarMenu').classList.remove('show');
+                }
+            });
+        }
+    });
+
+    document.getElementById('btnLoadDashboard')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        document.getElementById('dashboardSection').style.display = 'block';
+        document.querySelector('.page-title').innerText = 'Dashboard';
+        fetchDashboard();
+        if(window.innerWidth <= 768) {
+            document.getElementById('sidebarMenu').classList.remove('show');
+        }
     });
 
     document.getElementById('btnRefreshDashboard')?.addEventListener('click', fetchDashboard);
@@ -263,6 +275,16 @@ async function handleRegister(e) {
     }
 }
 
+function resetCreateForm() {
+    document.getElementById('editReqNo').value = '';
+    document.querySelector('.page-title').innerText = 'Create Request';
+    document.getElementById('approvalForm').reset();
+    document.getElementById('itemsContainer').innerHTML = '';
+    if(currentUser) document.getElementById('requestorEmail').value = currentUser.name;
+    itemCount = 0;
+    addNewItem();
+}
+
 function addNewItem() {
     const template = document.getElementById('itemTemplate');
     if(!template) return;
@@ -394,11 +416,12 @@ async function handleFormSubmit(e) {
     const statusMsg = document.getElementById('statusMessage');
     
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Saving (Draft)...';
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Saving...';
     statusMsg.innerText = '';
     
     try {
         const reqData = {
+            editReqNo: document.getElementById('editReqNo').value,
             requestorEmail: document.getElementById('requestorEmail').value,
             approverEmail: document.getElementById('approverEmail').value,
             docType: document.querySelector('input[name="docType"]:checked').value,
@@ -430,6 +453,7 @@ async function handleFormSubmit(e) {
                 wht: block.querySelector('.item-wht')?.value || 0,
                 total: block.querySelector('.item-total')?.value || 0,
                 productPhoto: photoData,
+                existingFileUrl: block.querySelector('.item-existing-file')?.value || "",
                 imageURL: block.querySelector('.item-imageurl')?.value || "",
                 invoice: block.querySelector('.item-inv')?.value || "",
                 branch: block.querySelector('.item-branch')?.value || "",
@@ -454,12 +478,9 @@ async function handleFormSubmit(e) {
         const result = JSON.parse(text);
         
         if (result.status === 'success') {
-            statusMsg.innerText = `Saved ${result.reqNo} as Draft successfully!`;
+            statusMsg.innerText = `Success! Saved ${result.reqNo}`;
             statusMsg.className = 'fw-bold text-success';
-            document.getElementById('approvalForm').reset();
-            document.getElementById('itemsContainer').innerHTML = '';
-            document.getElementById('requestorEmail').value = currentUser.name;
-            addNewItem();
+            resetCreateForm();
         } else {
             throw new Error(result.message || 'Server error.');
         }
@@ -511,6 +532,58 @@ async function handleBatchSend() {
     }
 }
 
+window.editRequest = function(reqNo) {
+    const req = window.dashboardData.find(r => r.reqNo === reqNo);
+    if(!req) return;
+
+    document.getElementById('editReqNo').value = reqNo;
+    document.querySelector('.page-title').innerText = 'Edit Request: ' + reqNo;
+    
+    const docRadios = document.querySelectorAll('input[name="docType"]');
+    docRadios.forEach(r => {
+        if(r.value === req.docType) r.checked = true;
+    });
+    
+    document.getElementById('approverEmail').value = req.approver || "";
+    document.getElementById('itemsContainer').innerHTML = '';
+    itemCount = 0;
+    
+    req.items.forEach(item => {
+        addNewItem(); 
+        const blocks = document.querySelectorAll('.item-block');
+        const block = blocks[blocks.length - 1];
+        
+        block.querySelector('.item-desc').value = item.description || "";
+        block.querySelector('.item-existing-file').value = item.productPhoto || ""; 
+        block.querySelector('.item-imageurl').value = item.imageURL || "";
+        block.querySelector('.item-amt').value = item.amount || 0;
+        block.querySelector('.item-vat').value = item.vat || 0;
+        block.querySelector('.item-wht').value = item.wht || 0;
+        block.querySelector('.item-total').value = item.total || 0;
+        
+        if(item.paymentDate && item.paymentDate.indexOf('T') > -1) {
+            block.querySelector('.item-paydate').value = item.paymentDate.split('T')[0];
+        }
+        
+        block.querySelector('.item-company').value = item.companyName || "";
+        block.querySelector('.item-supplier').value = item.supplierName || "";
+        block.querySelector('.item-inv').value = item.invoice || "";
+        block.querySelector('.item-branch').value = item.branch || "";
+        block.querySelector('.item-dept').value = item.department || "";
+        block.querySelector('.item-remark').value = item.remarks || "";
+        block.querySelector('.item-paymethod').value = item.paymentMethod || "";
+        block.querySelector('.item-paymethod').dispatchEvent(new Event('change'));
+        block.querySelector('.item-bank').value = item.bank || "";
+        block.querySelector('.item-accname').value = item.accName || "";
+        block.querySelector('.item-accno').value = item.accNo || "";
+    });
+    
+    document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.sidemenu-btn[data-target="formSection"]').classList.add('active');
+    document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+    document.getElementById('formSection').style.display = 'block';
+};
+
 async function fetchDashboard() {
     const tbody = document.getElementById('dashboardTableBody');
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
@@ -548,10 +621,14 @@ function renderDashboard(dataToRender) {
         if (req.status === 'Rejected') bClass = 'bg-danger text-white';
         if (req.status === 'Draft') bClass = 'bg-secondary text-white';
         
-        // แก้ไขเงื่อนไขการซ่อน Checkbox ให้แสดงผลทุกสถานะ ยกเว้น Completed
         let cbHtml = `<i class="fa-solid fa-check text-success opacity-75"></i>`;
         if (req.status !== 'Completed') {
             cbHtml = `<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="${req.reqNo}">`;
+        }
+
+        let editBtn = '';
+        if (req.status === 'Draft' || req.status.indexOf('Pending') > -1) {
+            editBtn = `<button class="btn btn-sm btn-outline-primary rounded-pill ms-1" onclick="editRequest('${req.reqNo}')" title="Edit Request"><i class="fa-solid fa-pen"></i></button>`;
         }
 
         let reviewBtn = '';
@@ -572,7 +649,7 @@ function renderDashboard(dataToRender) {
             <td class="text-end fw-bold text-light">${parseFloat(req.grandTotal).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             <td class="text-center" style="white-space: nowrap;">
                 <button class="btn btn-sm btn-outline-light rounded-pill" onclick="printRequest('${req.reqNo}')" title="Print PDF"><i class="fa-solid fa-print"></i></button>
-                ${reviewBtn}
+                ${editBtn}${reviewBtn}
             </td>
         `;
         tbody.appendChild(tr);
@@ -607,7 +684,7 @@ function openReviewModal(reqNo) {
                 <td class="text-center fw-bold">${index + 1}</td>
                 <td>
                     <div class="fw-bold">${item.description}</div>
-                    <small class="text-muted">Inv: ${item.invoice || '-'} | Dept: ${item.department}</small>
+                    <small class="text-muted">Inv: ${item.invoice \vert{}\vert{} '-'} \vert{} Dept:${item.department}</small>
                 </td>
                 <td class="text-end fw-bold">${parseFloat(item.total).toLocaleString('en-US')}</td>
                 <td class="text-center" style="white-space:nowrap;">
@@ -697,7 +774,6 @@ function printRequest(reqNo) {
         sumWht += parseFloat(item.wht) || 0;
         sumTotal += parseFloat(item.total) || 0;
         
-        // แก้ไขการฟอร์แมตวันที่ในหน้า PDF ให้เป็นแค่ DD/MM/YYYY
         let formattedPayDate = item.paymentDate;
         if(formattedPayDate && formattedPayDate.indexOf('T') > -1) {
             let datePart = formattedPayDate.split('T')[0];
