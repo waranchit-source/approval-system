@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5wsgoZhQXcE2nNE7CTf7sYWzLDJQyZVqoSHB8U4avMvEsJ6ndPYe0b5RFn6nuIcOO/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydBWC34cmsf-Y8UYfoSmOpB0a0OL9nx7Z_Y6rv0TbkgdYo6i4mky1QJrYzGD6ATwoo/exec';
 
 let globalDropdownData = null;
 let itemCount = 0;
@@ -403,12 +403,58 @@ function setupPaymentLogic(block) {
     });
 }
 
-const getBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = error => reject(error);
-});
+// ฟังก์ชันแปลงไฟล์และรวมเป็น PDF เดียวโดยใช้ไลบรารี pdf-lib
+async function processFilesToPDF(fileList) {
+    if (!fileList || fileList.length === 0) return null;
+    
+    try {
+        const { PDFDocument } = PDFLib;
+        const pdfDoc = await PDFDocument.create();
+        let hasContent = false;
+        
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            if (file.size > 5 * 1024 * 1024) throw new Error("ไฟล์ " + file.name + " มีขนาดใหญ่เกินไป (รวมกันต้องไม่เกิน 5MB)");
+            
+            const arrayBuffer = await file.arrayBuffer();
+            
+            if (file.type === 'application/pdf') {
+                const loadedPdf = await PDFDocument.load(arrayBuffer);
+                const pages = await pdfDoc.copyPages(loadedPdf, loadedPdf.getPageIndices());
+                pages.forEach(page => pdfDoc.addPage(page));
+                hasContent = true;
+            } else if (file.type === 'image/jpeg' || file.type === 'image/png') {
+                let img;
+                if (file.type === 'image/jpeg') {
+                    img = await pdfDoc.embedJpg(arrayBuffer);
+                } else {
+                    img = await pdfDoc.embedPng(arrayBuffer);
+                }
+                const page = pdfDoc.addPage([595.28, 841.89]); // ขนาด A4
+                const imgDims = img.scaleToFit(500, 750);
+                page.drawImage(img, {
+                    x: (595.28 - imgDims.width) / 2,
+                    y: (841.89 - imgDims.height) / 2,
+                    width: imgDims.width,
+                    height: imgDims.height
+                });
+                hasContent = true;
+            }
+        }
+        
+        if (!hasContent) return null;
+        
+        const pdfBytes = await pdfDoc.saveAsBase64();
+        return {
+            filename: 'Attached_Files.pdf',
+            mimeType: 'application/pdf',
+            bytes: pdfBytes
+        };
+    } catch (e) {
+        console.error(e);
+        throw new Error("เกิดข้อผิดพลาดในการรวมไฟล์ กรุณาตรวจสอบให้แน่ใจว่าเป็นไฟล์รูปภาพหรือ PDF เท่านั้น");
+    }
+}
 
 async function handleFormSubmit(e) {
     e.preventDefault();
@@ -442,14 +488,8 @@ async function handleFormSubmit(e) {
             let photoData = null;
             const fileInput = block.querySelector('.item-photo');
             if (fileInput && fileInput.files.length > 0) {
-                const file = fileInput.files[0];
-                if (file.size > 2 * 1024 * 1024) throw new Error("File in Item #" + (i+1) + " is too large (Max 2MB)");
-                let fileBytes = await getBase64(file);
-                photoData = {
-                    filename: file.name,
-                    mimeType: file.type,
-                    bytes: fileBytes
-                };
+                // เรียกใช้ฟังก์ชันรวมไฟล์ทั้งหมดให้เป็น PDF เดียว
+                photoData = await processFilesToPDF(fileInput.files);
             }
 
             reqData.items.push({
@@ -569,6 +609,8 @@ window.editRequest = function(reqNo) {
         
         if(item.paymentDate && item.paymentDate.indexOf('T') > -1) {
             block.querySelector('.item-paydate').value = item.paymentDate.split('T')[0];
+        } else {
+            block.querySelector('.item-paydate').value = item.paymentDate ? item.paymentDate : "";
         }
         
         block.querySelector('.item-company').value = item.companyName ? item.companyName : "";
@@ -633,7 +675,7 @@ function renderDashboard(dataToRender) {
         }
 
         let editBtn = '';
-        if (req.status === 'Draft' || req.status.indexOf('Pending') > -1) {
+        if (req.status !== 'Completed') {
             editBtn = '<button class="btn btn-sm btn-outline-primary rounded-pill ms-1" onclick="editRequest(\'' + req.reqNo + '\')" title="Edit Request"><i class="fa-solid fa-pen"></i></button>';
         }
 
