@@ -34,13 +34,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Passwords are no longer kept in the browser; remove any copy saved by older versions
+    safeStorageRemove(localStorage, 'savedApprovalPass');
     const savedId = safeStorageGet(localStorage, 'savedApprovalId');
-    const savedPass = safeStorageGet(localStorage, 'savedApprovalPass');
-    if(savedId && savedPass) {
+    if(savedId) {
         const loginIdEl = document.getElementById('loginId');
-        const loginPassEl = document.getElementById('loginPass');
         if (loginIdEl) loginIdEl.value = savedId;
-        if (loginPassEl) loginPassEl.value = savedPass;
         const rememberMeEl = document.getElementById('rememberMe');
         if (rememberMeEl) rememberMeEl.checked = true;
     }
@@ -203,13 +202,31 @@ async function parseScriptResponse(response) {
     }
 }
 
+// Sends the login token with every request; when the server says the session is invalid, return to the login screen.
 async function postToScript(payload) {
+    const body = Object.assign({}, payload);
+    if (currentUser && currentUser.token) body.token = currentUser.token;
     const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }
     });
-    return parseScriptResponse(response);
+    const result = await parseScriptResponse(response);
+    if (result && result.code === 'AUTH_REQUIRED') {
+        forceRelogin(result.message);
+        throw new Error(result.message || 'Please login again.');
+    }
+    return result;
+}
+
+function forceRelogin(message) {
+    if (approvalModalInstance) approvalModalInstance.hide();
+    handleLogout();
+    const alertBox = document.getElementById('loginAlert');
+    if (alertBox) {
+        alertBox.innerText = message || 'Your session has expired. Please login again.';
+        alertBox.style.display = 'block';
+    }
 }
 
 // Searchable dropdown: shows all options on focus, filters while typing, and still accepts free text.
@@ -323,12 +340,22 @@ function checkLocalSession() {
             currentUser = JSON.parse(savedUserSession);
         }
     } catch (e) {
-        // Corrupted saved session: clear it and show the login screen
+        currentUser = null;
+    }
+    // Corrupted session, or saved by an older version without a login token: login again
+    if (!currentUser || !currentUser.token) {
+        const hadSession = !!(savedUserLocal || savedUserSession);
         currentUser = null;
         safeStorageRemove(localStorage, 'approvalAppUser');
         safeStorageRemove(sessionStorage, 'approvalAppUser');
+        const alertBox = document.getElementById('loginAlert');
+        if (hadSession && alertBox) {
+            alertBox.innerText = 'Please login again.';
+            alertBox.style.display = 'block';
+        }
+        return;
     }
-    if (currentUser) showAppScreen();
+    showAppScreen();
 }
 
 function showAppScreen() {
@@ -422,18 +449,18 @@ async function handleLogin(e) {
     try {
         const result = await postToScript({ action: 'login', data: { id: id, password: password } });
 
-        if (result.status === 'success' && result.user) {
-            currentUser = result.user;
+        if (result.status === 'success' && result.user && result.token) {
+            currentUser = Object.assign({}, result.user, { token: result.token });
             if(rememberMe) {
                 safeStorageSet(localStorage, 'savedApprovalId', id);
-                safeStorageSet(localStorage, 'savedApprovalPass', password);
                 safeStorageSet(localStorage, 'approvalAppUser', JSON.stringify(currentUser));
             } else {
                 safeStorageRemove(localStorage, 'savedApprovalId');
-                safeStorageRemove(localStorage, 'savedApprovalPass');
                 safeStorageSet(sessionStorage, 'approvalAppUser', JSON.stringify(currentUser));
             }
+            document.getElementById('loginPass').value = '';
             showAppScreen();
+            resetCreateForm();
         } else {
             alertBox.innerText = result.message ? result.message : 'Login failed.';
             alertBox.style.display = 'block';
@@ -834,7 +861,7 @@ async function handleBatchSend() {
     btn.disabled = true;
 
     try {
-        const result = await postToScript({ action: 'batchSendRequest', reqNos: checkedVals, user: currentUser });
+        const result = await postToScript({ action: 'batchSendRequest', reqNos: checkedVals });
 
         if(result.status === 'success') {
             alert('Approval email sent successfully!');
@@ -918,7 +945,7 @@ async function fetchDashboard() {
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
 
     try {
-        const result = await postToScript({ action: 'getRequests', user: currentUser });
+        const result = await postToScript({ action: 'getRequests' });
 
         if (result.status === 'success') {
             window.dashboardData = Array.isArray(result.data) ? result.data : [];
@@ -965,7 +992,8 @@ function renderDashboard(dataToRender) {
         }
 
         let reviewBtn = '';
-        if ((currentUser && currentUser.role === 'Admin') || status.indexOf('Pending') > -1) {
+        // Only Admin can approve inside the system (requesters must not approve their own requests)
+        if (currentUser && currentUser.role === 'Admin') {
             reviewBtn = '<button type="button" class="btn btn-sm btn-outline-warning rounded-pill ms-1" data-action="review" data-reqno="' + escapeHtml(reqNo) + '" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>';
         }
 
@@ -1073,7 +1101,6 @@ async function handleModalSubmit(e) {
         const result = await postToScript({
             action: 'systemPartialApprove',
             reqNo: reqNo,
-            approver: currentUser.name,
             selections: selections
         });
 
