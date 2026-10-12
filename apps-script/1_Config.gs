@@ -148,9 +148,20 @@ function withLock_(fn) {
   }
 }
 
-function setItemDecision_(sheet, rowIndex, status, approver, when) {
-  sheet.getRange(rowIndex + 1, COL.STATUS + 1).setValue(status);
-  sheet.getRange(rowIndex + 1, COL.APPROVER + 1, 1, 2).setValues([[approver, when]]);
+// Writes approve/reject results. Rows next to each other are written together
+// (2 sheet calls per block of rows instead of 2 calls per item).
+function applyDecisions_(sheet, changes, approver, when) {
+  var sorted = changes.slice().sort(function (a, b) { return a.rowIndex - b.rowIndex; });
+  var i = 0;
+  while (i < sorted.length) {
+    var j = i;
+    while (j + 1 < sorted.length && sorted[j + 1].rowIndex === sorted[j].rowIndex + 1) j++;
+    var run = sorted.slice(i, j + 1);
+    var firstRow = run[0].rowIndex + 1;
+    sheet.getRange(firstRow, COL.STATUS + 1, run.length, 1).setValues(run.map(function (c) { return [c.status]; }));
+    sheet.getRange(firstRow, COL.APPROVER + 1, run.length, 2).setValues(run.map(function () { return [approver, when]; }));
+    i = j + 1;
+  }
 }
 
 var PAGE_CSS =

@@ -21,6 +21,7 @@ function doPost(e) {
     if (action === 'batchSendRequest') return handleBatchSend_(user, payload.reqNos);
     if (action === 'resendRequest') return handleBatchSend_(user, [payload.reqNo]);
     if (action === 'systemPartialApprove') return handleSystemPartialApprove_(user, payload);
+    if (action === 'notifyDecision') return handleNotifyDecision_(user, payload);
 
     return errorOut_('Unknown action.');
   } catch (err) {

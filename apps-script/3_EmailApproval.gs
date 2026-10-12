@@ -146,7 +146,9 @@ function handleEmailActionPage_(params) {
   return renderConfirmPage_(act, targets, params);
 }
 
-// Called from the confirmation page with google.script.run (must not end with "_")
+// Called from the confirmation page with google.script.run (must not end with "_").
+// Saves the decision and answers right away; the page then calls sendEmailDecisionNotifications()
+// so the approver does not wait for the notification email to be sent.
 function confirmEmailAction(params) {
   var act = parseEmailAction_(params);
   if (act.error) return { ok: false, message: act.error };
@@ -156,15 +158,14 @@ function confirmEmailAction(params) {
     outcome = withLock_(function () {
       var sheet = getApprovalSheet_();
       var targets = collectEmailTargets_(sheet.getDataRange().getValues(), act);
-      var now = new Date();
-      var notify = {};
+      var changes = [];
       targets.requests.forEach(function (req) {
         req.items.forEach(function (item) {
-          setItemDecision_(sheet, item.rowIndex, item.decision === 'Approve' ? 'Completed' : 'Rejected', act.approver, now);
+          changes.push({ rowIndex: item.rowIndex, status: item.decision === 'Approve' ? 'Completed' : 'Rejected' });
         });
-        notify[req.reqNo] = req.senderName;
       });
-      return { targets: targets, notify: notify };
+      applyDecisions_(sheet, changes, act.approver, new Date());
+      return { targets: targets };
     });
   } catch (err) {
     console.error(err);
@@ -175,12 +176,29 @@ function confirmEmailAction(params) {
   if (outcome.targets.requests.length === 0) {
     return { ok: false, message: 'Nothing was changed. These items have already been approved or rejected.' };
   }
-  Object.keys(outcome.notify).forEach(function (rn) { sendDetailedNotificationEmail(rn, outcome.notify[rn]); });
 
   var parts = [];
   if (outcome.targets.approveCount) parts.push(outcome.targets.approveCount + ' item(s) approved');
   if (outcome.targets.rejectCount) parts.push(outcome.targets.rejectCount + ' item(s) rejected');
-  return { ok: true, message: parts.join(' and ') + '. The requester has been notified.' };
+  return {
+    ok: true,
+    message: parts.join(' and ') + '. The requester will be notified by email.',
+    notify: outcome.targets.requests.map(function (req) { return req.reqNo; })
+  };
+}
+
+// Second call from the confirmation page: sends the result emails in the background.
+function sendEmailDecisionNotifications(params, reqNos) {
+  var act = parseEmailAction_(params);
+  if (act.error) return { ok: false };
+  var cache = CacheService.getScriptCache();
+  var list = normalizeReqNos_(reqNos).filter(function (rn) {
+    // Only requests from this signed link, and at most once per request every 10 minutes
+    return act.reqNos.indexOf(rn) > -1 && !cache.get('notified|' + params.sig + '|' + rn);
+  });
+  notifyRequesters_(list);
+  list.forEach(function (rn) { cache.put('notified|' + params.sig + '|' + rn, '1', 600); });
+  return { ok: true };
 }
 
 function renderConfirmPage_(act, targets, params) {
@@ -239,7 +257,7 @@ function renderConfirmPage_(act, targets, params) {
       'function finish(text,kind,title){document.getElementById("actions").style.display="none";showMessage(text,kind);if(title){document.querySelector("#confirmCard h1").textContent=title;}}' +
       'function confirmAction(){setBusy(true);showMessage("","");' +
         'google.script.run' +
-          '.withSuccessHandler(function(res){if(res&&res.ok){finish(res.message,"ok","Done");}else if(res&&res.retry){setBusy(false);showMessage(res.message+" Please try again.","error");}else{finish((res&&res.message)||"Something went wrong.","error");}})' +
+          '.withSuccessHandler(function(res){if(res&&res.ok){finish(res.message,"ok","Done");if(res.notify&&res.notify.length){google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){}).sendEmailDecisionNotifications(PARAMS,res.notify);}}else if(res&&res.retry){setBusy(false);showMessage(res.message+" Please try again.","error");}else{finish((res&&res.message)||"Something went wrong.","error");}})' +
           '.withFailureHandler(function(err){setBusy(false);showMessage("Could not save: "+((err&&err.message)||"connection error")+". Please try again.","error");})' +
           '.confirmEmailAction(PARAMS);}' +
       'function cancelAction(){finish("No changes were made. You can close this window.","neutral","Cancelled");}' +
