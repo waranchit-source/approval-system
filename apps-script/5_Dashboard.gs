@@ -130,9 +130,8 @@ function handleSystemPartialApprove_(user, payload) {
   var result = withLock_(function () {
     var sheet = getApprovalSheet_();
     var data = sheet.getDataRange().getValues();
-    var now = new Date();
     var itemCounter = 0;
-    var updated = false;
+    var changes = [];
     var found = false;
     var sender = '';
     for (var k = 1; k < data.length; k++) {
@@ -142,14 +141,21 @@ function handleSystemPartialApprove_(user, payload) {
       var choice = selections[itemCounter];
       itemCounter++;
       if ((choice === 'Approve' || choice === 'Reject') && isPending_(data[k][COL.STATUS])) {
-        setItemDecision_(sheet, k, choice === 'Approve' ? 'Completed' : 'Rejected', user.name, now);
-        updated = true;
+        changes.push({ rowIndex: k, status: choice === 'Approve' ? 'Completed' : 'Rejected' });
       }
     }
-    return { found: found, updated: updated, sender: sender };
+    applyDecisions_(sheet, changes, user.name, new Date());
+    return { found: found, updated: changes.length > 0, sender: sender };
   });
 
   if (!result.found) return errorOut_('Request ' + reqNo + ' not found.');
-  if (result.updated && result.sender) sendDetailedNotificationEmail(reqNo, result.sender);
+  // The web page sends deferNotify and asks for the email separately (notifyDecision) so the Admin does not wait
+  if (result.updated && result.sender && !payload.deferNotify) sendDetailedNotificationEmail(reqNo, result.sender);
   return jsonOut_({ status: 'success', updated: result.updated });
+}
+
+function handleNotifyDecision_(user, payload) {
+  if (user.role !== 'Admin') return errorOut_('Only Admin can review requests in the system.');
+  notifyRequesters_([payload.reqNo]);
+  return jsonOut_({ status: 'success' });
 }

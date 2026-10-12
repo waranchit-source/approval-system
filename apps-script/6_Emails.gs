@@ -4,10 +4,24 @@
 // Emails
 // ======================================================================
 
-function sendDetailedNotificationEmail(reqNo, senderName) {
+// Sends the result email for each request (reads the sheet once for all of them)
+function notifyRequesters_(reqNos) {
+  var list = normalizeReqNos_(reqNos);
+  if (list.length === 0) return;
+  var data = getApprovalSheet_().getDataRange().getValues();
+  list.forEach(function (rn) {
+    for (var i = 1; i < data.length; i++) {
+      if (str_(data[i][COL.REQ_NO]) === rn) {
+        sendDetailedNotificationEmail(rn, data[i][COL.SENDER], data);
+        return;
+      }
+    }
+  });
+}
+
+function sendDetailedNotificationEmail(reqNo, senderName, preloadedData) {
   try {
-    var sheet = getApprovalSheet_();
-    var data = sheet.getDataRange().getValues();
+    var data = preloadedData || getApprovalSheet_().getDataRange().getValues();
     var allItemsHtml = '';
     var approver = '';
     var requestorName = '';

@@ -1109,12 +1109,15 @@ async function handleModalSubmit(e) {
             action: 'systemPartialApprove',
             reqNo: reqNo,
             approver: currentUser.name,
-            selections: selections
+            selections: selections,
+            deferNotify: true
         });
 
         if (result.status === 'success') {
             approvalModalInstance.hide();
             fetchDashboard();
+            // Send the result email in the background so the Admin does not wait for it
+            if (result.updated) postToScript({ action: 'notifyDecision', reqNo: reqNo }).catch(err => console.warn('Notification email failed', err));
         } else {
             alertBox.innerText = result.message ? result.message : 'Failed to submit.';
             alertBox.className = 'text-danger mt-2';

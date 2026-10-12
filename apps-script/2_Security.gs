@@ -4,13 +4,17 @@
 // Security: password hashing, login tokens, signed email links
 // ======================================================================
 
+var authSecretCache_ = null;
+
 function getSecret_() {
+  if (authSecretCache_) return authSecretCache_;
   var props = PropertiesService.getScriptProperties();
   var secret = props.getProperty('AUTH_SECRET');
   if (!secret) {
     secret = Utilities.getUuid() + Utilities.getUuid();
     props.setProperty('AUTH_SECRET', secret);
   }
+  authSecretCache_ = secret;
   return secret;
 }
 
