@@ -95,7 +95,7 @@
         </div>
         <ul class="nav flex-column mb-auto side-menu">
             <li class="nav-item">
-                <a href="#" class="nav-link active sidemenu-btn" data-target="formSection" onclick="resetCreateForm()">
+                <a href="#" class="nav-link active sidemenu-btn" data-target="formSection">
                     <i class="fa-solid fa-pen-nib"></i> <span>New Request</span>
                 </a>
             </li>
@@ -139,17 +139,25 @@
                     </div>
 
                     <div class="row mb-5 g-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-secondary">Requestor Name</label>
-                            <input type="text" class="form-control neon-input bg-dark text-light border-0" id="requestorEmail" readonly>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-secondary" for="senderName">Senders</label>
+                            <input type="text" class="form-control neon-input bg-dark text-light border-0" id="senderName" readonly>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-light" for="requestorName">Requestor Name</label>
+                            <div class="combo-wrapper">
+                                <input type="text" class="form-control neon-input combo-input" id="requestorName" placeholder="Select or type a name..." autocomplete="off" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label fw-bold text-light">Send to Approver</label>
                             <select class="form-select neon-input form-select-custom" id="approverEmail" required>
                                 <option value="">Loading...</option>
                             </select>
                         </div>
                     </div>
+
+                    <datalist id="bankOptions"></datalist>
 
                     <h5 class="fw-bolder text-light mb-4">Items Detail</h5>
                     <div id="itemsContainer"></div>
@@ -171,7 +179,7 @@
                 <div class="col-md-6 mb-3 mb-md-0">
                     <div class="position-relative">
                         <i class="fa-solid fa-magnifying-glass position-absolute text-secondary" style="left: 15px; top: 14px;"></i>
-                        <input type="text" id="searchDashboard" class="form-control neon-input ps-5" placeholder="Search Ref No., Date, or Requestor Name...">
+                        <input type="text" id="searchDashboard" class="form-control neon-input ps-5" placeholder="Search Ref No., Date, Senders or Requestor Name...">
                     </div>
                 </div>
                 <div class="col-md-6 text-md-end">
@@ -188,14 +196,15 @@
                                 <th style="width: 40px;" class="text-center">#</th>
                                 <th>Req No.</th>
                                 <th>Date</th>
-                                <th>Requestor</th>
+                                <th>Senders</th>
+                                <th>Requestor Name</th>
                                 <th>Status</th>
                                 <th class="text-end">Total</th>
                                 <th class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody id="dashboardTableBody">
-                            <tr><td colspan="7" class="text-center py-5 text-secondary">Loading requests...</td></tr>
+                            <tr><td colspan="8" class="text-center py-5 text-secondary">Loading requests...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -321,7 +330,6 @@
                     <div class="col-md-4 bank-col" style="display:none;">
                         <label class="form-label text-secondary fw-semibold text-sm">Bank</label>
                         <input type="text" class="form-control neon-input item-bank" list="bankOptions">
-                        <datalist id="bankOptions"></datalist>
                     </div>
                     <div class="col-md-4 accname-col" style="display:none;">
                         <label class="form-label text-secondary fw-semibold text-sm">Account Name</label>

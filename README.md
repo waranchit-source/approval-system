@@ -1,1 +1,30 @@
-# approval-system
+# Approval System
+
+ระบบขออนุมัติเอกสาร (Payment Voucher / Petty Cash / Billing Receipt) ใช้ Google Sheet "Approval" เป็นฐานข้อมูล
+
+## ไฟล์
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `index.html`, `style.css`, `app.js` | หน้าเว็บ (Login, สร้าง/แก้ไขคำขอ, Dashboard, พิมพ์ PDF) |
+| `apps-script/1_Config.gs` … `6_Emails.gs` | Backend บน Google Apps Script (ผูกกับ Google Sheet "Approval") แบ่งเป็น 6 ไฟล์ |
+
+## การติดตั้ง / อัปเดต Backend
+1. เปิด Google Sheet "Approval" > Extensions > Apps Script
+2. ไฟล์ `Code.gs` เดิม: ลบโค้ดข้างในทั้งหมด แล้ววางโค้ดจาก `apps-script/1_Config.gs`
+   จากนั้นกด **+ > Script** สร้างไฟล์ใหม่อีก 5 ไฟล์ แล้ววางโค้ดจาก `2_Security.gs`, `3_EmailApproval.gs`,
+   `4_Api.gs`, `5_Dashboard.gs`, `6_Emails.gs` ไฟล์ละ 1 ไฟล์ แล้ว Save
+3. Deploy > Manage deployments > แก้ไข deployment เดิม > Version: **New version** > Deploy
+   (Execute as: Me, Who has access: Anyone) — URL จะเหมือนเดิม จึงไม่ต้องแก้ `SCRIPT_URL` ใน `app.js`
+4. หน้าเว็บ (`index.html`, `style.css`, `app.js`) ขึ้นเว็บอัตโนมัติผ่าน GitHub Pages เมื่ออัปเดต branch `main`
+
+## ชีทที่ใช้
+- **Approval** – รายการคำขอ (คอลัมน์ Z "Requestor Name" ถูกสร้างอัตโนมัติ)
+- **Requestor Name** – รายชื่อสำหรับช่อง Requestor Name (คอลัมน์ A, แถวแรกเป็นหัวตาราง)
+- **Users** – ผู้ใช้ (รหัสผ่านถูกเข้ารหัสอัตโนมัติหลัง login; รีเซ็ตรหัสได้โดยพิมพ์รหัสใหม่ทับในชีท)
+- **Email** – กลุ่มผู้อนุมัติและอีเมล, **Email ACC** – อีเมล CC ตอนแจ้งผล
+- **Dropdown**, **Companies**, **Vendor name** – ตัวเลือกในฟอร์ม
+
+## การอนุมัติ
+- **ผ่านอีเมล:** ผู้อนุมัติกด APPROVE ALL / REJECT ALL หรือเลือกทีละรายการแล้วกด SUBMIT SELECTIONS
+  ระบบจะเปิดหน้ายืนยันก่อน และบันทึกผลเมื่อกด **Confirm** เท่านั้น
+- **ในระบบ:** เฉพาะผู้ใช้ Role = Admin กดปุ่ม Review ใน Dashboard
