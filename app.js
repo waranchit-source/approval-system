@@ -5,6 +5,7 @@ let globalDropdownData = null;
 let itemCount = 0;
 let currentUser = null;
 let approvalModalInstance = null;
+let lastUserName = null;
 window.dashboardData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -206,6 +207,8 @@ async function parseScriptResponse(response) {
 async function postToScript(payload) {
     const body = Object.assign({}, payload);
     if (currentUser && currentUser.token) body.token = currentUser.token;
+    // Older backend versions read the user from the request instead of the token; the current backend ignores this
+    if (currentUser && !('user' in body)) body.user = { id: currentUser.id, name: currentUser.name, branch: currentUser.branch, role: currentUser.role };
     const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -219,9 +222,10 @@ async function postToScript(payload) {
     return result;
 }
 
+// Keeps the request form so the same user can log in again and save what they typed
 function forceRelogin(message) {
     if (approvalModalInstance) approvalModalInstance.hide();
-    handleLogout();
+    handleLogout(true);
     const alertBox = document.getElementById('loginAlert');
     if (alertBox) {
         alertBox.innerText = message || 'Your session has expired. Please login again.';
@@ -342,8 +346,8 @@ function checkLocalSession() {
     } catch (e) {
         currentUser = null;
     }
-    // Corrupted session, or saved by an older version without a login token: login again
-    if (!currentUser || !currentUser.token) {
+    // Corrupted session: login again (sessions without a token are rejected by the server with AUTH_REQUIRED)
+    if (!currentUser || typeof currentUser !== 'object' || !currentUser.name) {
         const hadSession = !!(savedUserLocal || savedUserSession);
         currentUser = null;
         safeStorageRemove(localStorage, 'approvalAppUser');
@@ -379,16 +383,17 @@ function showAppScreen() {
     });
 }
 
-function handleLogout() {
+function handleLogout(keepForm) {
     safeStorageRemove(localStorage, 'approvalAppUser');
     safeStorageRemove(sessionStorage, 'approvalAppUser');
+    lastUserName = (keepForm === true && currentUser) ? currentUser.name : null;
     currentUser = null;
     window.dashboardData = [];
     const tbody = document.getElementById('dashboardTableBody');
     if (tbody) tbody.innerHTML = '';
     const statusMsg = document.getElementById('statusMessage');
     if (statusMsg) statusMsg.innerText = '';
-    resetCreateForm();
+    if (!lastUserName) resetCreateForm();
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('loginContainer').style.display = 'block';
 }
@@ -449,8 +454,8 @@ async function handleLogin(e) {
     try {
         const result = await postToScript({ action: 'login', data: { id: id, password: password } });
 
-        if (result.status === 'success' && result.user && result.token) {
-            currentUser = Object.assign({}, result.user, { token: result.token });
+        if (result.status === 'success' && result.user) {
+            currentUser = Object.assign({}, result.user, result.token ? { token: result.token } : {});
             if(rememberMe) {
                 safeStorageSet(localStorage, 'savedApprovalId', id);
                 safeStorageSet(localStorage, 'approvalAppUser', JSON.stringify(currentUser));
@@ -459,8 +464,10 @@ async function handleLogin(e) {
                 safeStorageSet(sessionStorage, 'approvalAppUser', JSON.stringify(currentUser));
             }
             document.getElementById('loginPass').value = '';
+            const sameUser = lastUserName && lastUserName === currentUser.name;
+            lastUserName = null;
             showAppScreen();
-            resetCreateForm();
+            if (!sameUser) resetCreateForm();
         } else {
             alertBox.innerText = result.message ? result.message : 'Login failed.';
             alertBox.style.display = 'block';
@@ -1101,6 +1108,7 @@ async function handleModalSubmit(e) {
         const result = await postToScript({
             action: 'systemPartialApprove',
             reqNo: reqNo,
+            approver: currentUser.name,
             selections: selections
         });
 
