@@ -9,6 +9,9 @@
  * 4) ผู้ใช้ทุกคนต้อง Login ใหม่ 1 ครั้ง และคำขอที่ยัง Pending อยู่ให้กด "Send Approval Email" ใหม่
  *    เพราะลิงก์อนุมัติในอีเมลเก่าไม่มีรหัสยืนยัน (sig) จึงใช้ไม่ได้แล้ว
  *
+ * การอนุมัติผ่านอีเมล: ลิงก์ APPROVE ALL / REJECT ALL และปุ่ม SUBMIT SELECTIONS จะเปิด "หน้ายืนยัน" ก่อน
+ * ระบบจะบันทึกผลเมื่อผู้อนุมัติกดปุ่ม Confirm บนหน้านั้นเท่านั้น (กันระบบสแกนลิงก์ของอีเมลกดอนุมัติเอง)
+ *
  * โครงสร้างชีท Approval (คอลัมน์ Z "Requestor Name" ถูกสร้างอัตโนมัติ)
  * A Request Date | B No. | C Description | D Amount | E VAT | F WHT | G Total | H Product Photo | I Image URL
  * J Invoice No. | K Branch | L Department | M Remarks | N Payment Method | O Bank | P Account Name | Q Account No.
@@ -147,14 +150,44 @@ function setItemDecision_(sheet, rowIndex, status, approver, when) {
   sheet.getRange(rowIndex + 1, COL.APPROVER + 1, 1, 2).setValues([[approver, when]]);
 }
 
-function htmlPage_(title, message, isError) {
-  var color = isError ? '#ff6b6b' : '#ffffff';
-  var heading = isError
-    ? "<h2 style='color:" + color + ";'>" + esc_(message) + "</h2>"
-    : "<h2 style='background:linear-gradient(45deg, #f09433, #dc2743); -webkit-background-clip:text; -webkit-text-fill-color:transparent;'>" + esc_(message) + "</h2>";
+var PAGE_CSS =
+  '*{box-sizing:border-box}' +
+  'body{margin:0;background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.45}' +
+  '.wrap{max-width:640px;margin:0 auto;padding:32px 16px}' +
+  '.card{background:#161616;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:24px}' +
+  'h1{margin:0 0 6px;font-size:24px}' +
+  '.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}' +
+  '.muted{color:#9a9a9a}.light{color:#e6e6e6}.small{font-size:12px}' +
+  '.summary{margin:12px 0 4px}' +
+  '.tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}' +
+  '.tag-approve{background:rgba(40,167,69,.18);color:#4ade80}.tag-reject{background:rgba(220,53,69,.18);color:#f87171}' +
+  '.req{border:1px solid rgba(255,255,255,.1);border-radius:14px;margin-top:16px;overflow:hidden}' +
+  '.req-head{background:rgba(255,255,255,.05);padding:12px 16px}' +
+  '.item{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid rgba(255,255,255,.06)}' +
+  '.item-main{min-width:0}.item-desc{font-weight:600;word-break:break-word}' +
+  '.item-side{text-align:right;flex-shrink:0}.amount{font-weight:700;margin-bottom:4px;font-variant-numeric:tabular-nums}' +
+  '.grand{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:14px 16px;border-radius:14px;background:rgba(240,148,51,.12);font-weight:700}' +
+  '.grand-amount{color:#ff8a8a;font-size:18px;font-variant-numeric:tabular-nums}' +
+  '.actions{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}' +
+  '.btn{flex:1 1 180px;padding:14px 20px;border:0;border-radius:999px;font-size:15px;font-weight:700;color:#fff;cursor:pointer}' +
+  '.btn:disabled{opacity:.6;cursor:wait}' +
+  '.btn-approve{background:#28a745}.btn-reject{background:#dc3545}' +
+  '.btn-main{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}' +
+  '.btn-cancel{background:transparent;border:1px solid rgba(255,255,255,.3)}' +
+  '.message{margin-top:16px;font-weight:600}.message:empty{display:none}' +
+  '.message.ok{color:#4ade80}.message.error{color:#ff6b6b}.message.neutral{color:#cfcfcf}';
+
+function pageShell_(title, bodyHtml) {
   return HtmlService.createHtmlOutput(
-    "<div style='font-family:sans-serif; text-align:center; padding:50px; background:#121212; color:#fff; min-height:100vh;'>" + heading + "</div>"
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + PAGE_CSS + '</style></head>' +
+    '<body><div class="wrap">' + bodyHtml + '</div></body></html>'
   ).setTitle(title).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function htmlPage_(title, message, isError) {
+  return pageShell_(title,
+    '<div class="card"><h1 class="' + (isError ? '' : 'ig') + '"' + (isError ? ' style="color:#ff6b6b"' : '') + '>' + esc_(title) + '</h1>' +
+    '<p class="' + (isError ? 'light' : 'muted') + '">' + esc_(message) + '</p></div>');
 }
 
 // ======================================================================
@@ -333,8 +366,9 @@ function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
   try {
     if (params.action === 'getDropdowns') return jsonOut_(getDropdowns_());
-    if (params.action === 'approve' || params.action === 'reject') return handleEmailApproveAll_(params);
-    if (params.action === 'partialApprove') return handleEmailPartialApprove_(params);
+    if (params.action === 'approve' || params.action === 'reject' || params.action === 'partialApprove') {
+      return handleEmailActionPage_(params);
+    }
     return htmlPage_('Approval System', 'Approval System is running.', false);
   } catch (err) {
     console.error(err);
@@ -381,83 +415,195 @@ function getDropdowns_() {
   };
 }
 
-function handleEmailApproveAll_(params) {
-  var reqNos = normalizeReqNos_(params.reqNo);
+// ----------------------------------------------------------------------
+// Email approvals use two steps:
+// 1) The link / form in the email opens a confirmation page (GET). Opening it changes nothing,
+//    so email security scanners that open every link cannot approve or reject by accident.
+// 2) The approver presses "Confirm" on that page, which calls confirmEmailAction() and saves the result.
+// ----------------------------------------------------------------------
+
+// Reads and verifies the parameters of an email link/form. Returns { error } or the parsed action.
+function parseEmailAction_(params) {
+  params = params || {};
   var approver = str_(params.approver);
-  if (reqNos.length === 0) return htmlPage_('Error', 'Error: Request parameters are missing.', true);
-  if (!params.sig || params.sig !== emailLinkSignature_(reqNos, approver)) {
-    return htmlPage_('Invalid link', 'This approval link is invalid or out of date. Please ask the requester to send the approval email again.', true);
+  var act = { approver: approver, decisionAll: null, decisions: {} };
+
+  if (params.action === 'approve' || params.action === 'reject') {
+    act.type = params.action;
+    act.reqNos = normalizeReqNos_(params.reqNo);
+    act.decisionAll = params.action === 'approve' ? 'Approve' : 'Reject';
+  } else if (params.action === 'partialApprove') {
+    act.type = 'partial';
+    act.reqNos = normalizeReqNos_(params.reqNos);
+  } else {
+    return { error: 'Unknown action.' };
   }
 
-  var newStatus = params.action === 'approve' ? 'Completed' : 'Rejected';
-  var result = withLock_(function () {
-    var sheet = getApprovalSheet_();
-    var data = sheet.getDataRange().getValues();
-    var now = new Date();
-    var found = false;
-    var sendersToNotify = {};
-    for (var k = 1; k < data.length; k++) {
-      var rNo = str_(data[k][COL.REQ_NO]);
-      if (rNo && reqNos.indexOf(rNo) > -1) {
-        found = true;
-        // Only items still waiting for approval; items already approved/rejected keep their result
-        if (isPending_(data[k][COL.STATUS])) {
-          setItemDecision_(sheet, k, newStatus, approver, now);
-          sendersToNotify[rNo] = data[k][COL.SENDER];
-        }
+  if (act.reqNos.length === 0) return { error: 'Request parameters are missing.' };
+  if (!params.sig || params.sig !== emailLinkSignature_(act.reqNos, approver)) {
+    return { error: 'This approval link is invalid or out of date. Please ask the requester to send the approval email again.' };
+  }
+
+  if (act.type === 'partial') {
+    var count = 0;
+    for (var key in params) {
+      var m = key.match(/^(REQ-\d+)_(\d+)$/);
+      if (m && act.reqNos.indexOf(m[1]) > -1 && (params[key] === 'Approve' || params[key] === 'Reject')) {
+        if (!act.decisions[m[1]]) act.decisions[m[1]] = {};
+        act.decisions[m[1]][parseInt(m[2], 10)] = params[key];
+        count++;
       }
     }
-    return { found: found, sendersToNotify: sendersToNotify };
-  });
-
-  if (!result.found) return htmlPage_('Not found', 'Error: Requests not found. (' + reqNos.join(', ') + ')', true);
-  var notified = Object.keys(result.sendersToNotify);
-  if (notified.length === 0) return htmlPage_('Already processed', 'These requests have already been processed or are not waiting for approval.', true);
-  notified.forEach(function (rn) { sendDetailedNotificationEmail(rn, result.sendersToNotify[rn]); });
-  return htmlPage_('Done', 'Selected Requests have been ' + newStatus, false);
+    if (count === 0) return { error: 'No selections made. Please go back to the email and choose Approve or Reject for at least one item.' };
+  }
+  return act;
 }
 
-function handleEmailPartialApprove_(params) {
-  var approver = str_(params.approver);
-  var reqNos = normalizeReqNos_(params.reqNos);
-  if (reqNos.length === 0 || !params.sig || params.sig !== emailLinkSignature_(reqNos, approver)) {
-    return htmlPage_('Invalid link', 'This approval form is invalid or out of date. Please ask the requester to send the approval email again.', true);
+// Finds the items this action would change (only items still pending), grouped by request.
+function collectEmailTargets_(data, act) {
+  var result = { found: false, requests: [], approveCount: 0, rejectCount: 0, total: 0 };
+  var byReq = {};
+  var itemCounters = {};
+  for (var k = 1; k < data.length; k++) {
+    var row = data[k];
+    var rNo = str_(row[COL.REQ_NO]);
+    if (!rNo || act.reqNos.indexOf(rNo) === -1) continue;
+    result.found = true;
+    if (itemCounters[rNo] === undefined) itemCounters[rNo] = 0;
+    var itemIndex = itemCounters[rNo]++;
+    var decision = act.decisionAll || (act.decisions[rNo] ? act.decisions[rNo][itemIndex] : null);
+    if (!decision || !isPending_(row[COL.STATUS])) continue;
+
+    if (!byReq[rNo]) {
+      byReq[rNo] = {
+        reqNo: rNo, docType: str_(row[COL.DOC_TYPE]) || 'Payment Voucher', senderName: cleanName_(row[COL.SENDER]),
+        requestorName: cleanName_(row[COL.REQUESTOR_NAME]), items: []
+      };
+      result.requests.push(byReq[rNo]);
+    }
+    byReq[rNo].items.push({
+      rowIndex: k, description: str_(row[COL.DESC]), invoice: str_(row[COL.INVOICE]),
+      supplierName: str_(row[COL.SUPPLIER]), total: num_(row[COL.TOTAL]), decision: decision
+    });
+    result.total += num_(row[COL.TOTAL]);
+    if (decision === 'Approve') result.approveCount++; else result.rejectCount++;
+  }
+  return result;
+}
+
+// GET: show the confirmation page (no changes are saved here)
+function handleEmailActionPage_(params) {
+  var act = parseEmailAction_(params);
+  if (act.error) return htmlPage_('Invalid link', act.error, true);
+
+  var targets = collectEmailTargets_(getApprovalSheet_().getDataRange().getValues(), act);
+  if (!targets.found) return htmlPage_('Not found', 'Requests not found. (' + act.reqNos.join(', ') + ')', true);
+  if (targets.requests.length === 0) {
+    return htmlPage_('Already processed', 'These items have already been approved or rejected, or are no longer waiting for approval.', true);
+  }
+  return renderConfirmPage_(act, targets, params);
+}
+
+// Called from the confirmation page with google.script.run (must not end with "_")
+function confirmEmailAction(params) {
+  var act = parseEmailAction_(params);
+  if (act.error) return { ok: false, message: act.error };
+
+  var outcome;
+  try {
+    outcome = withLock_(function () {
+      var sheet = getApprovalSheet_();
+      var targets = collectEmailTargets_(sheet.getDataRange().getValues(), act);
+      var now = new Date();
+      var notify = {};
+      targets.requests.forEach(function (req) {
+        req.items.forEach(function (item) {
+          setItemDecision_(sheet, item.rowIndex, item.decision === 'Approve' ? 'Completed' : 'Rejected', act.approver, now);
+        });
+        notify[req.reqNo] = req.senderName;
+      });
+      return { targets: targets, notify: notify };
+    });
+  } catch (err) {
+    console.error(err);
+    return { ok: false, retry: true, message: err.message };
   }
 
-  var decisions = {};
-  for (var key in params) {
-    var m = key.match(/^(REQ-\d+)_(\d+)$/);
-    if (m && reqNos.indexOf(m[1]) > -1 && (params[key] === 'Approve' || params[key] === 'Reject')) {
-      if (!decisions[m[1]]) decisions[m[1]] = {};
-      decisions[m[1]][parseInt(m[2], 10)] = params[key];
-    }
+  if (!outcome.targets.found) return { ok: false, message: 'Requests not found. (' + act.reqNos.join(', ') + ')' };
+  if (outcome.targets.requests.length === 0) {
+    return { ok: false, message: 'Nothing was changed. These items have already been approved or rejected.' };
   }
-  if (Object.keys(decisions).length === 0) return htmlPage_('Nothing selected', 'No selections made. Please choose Approve or Reject for at least one item.', true);
+  Object.keys(outcome.notify).forEach(function (rn) { sendDetailedNotificationEmail(rn, outcome.notify[rn]); });
 
-  var sendersToNotify = withLock_(function () {
-    var sheet = getApprovalSheet_();
-    var data = sheet.getDataRange().getValues();
-    var now = new Date();
-    var itemCounters = {};
-    var notify = {};
-    for (var k = 1; k < data.length; k++) {
-      var rNo = str_(data[k][COL.REQ_NO]);
-      if (!rNo || !decisions[rNo]) continue;
-      if (itemCounters[rNo] === undefined) itemCounters[rNo] = 0;
-      var choice = decisions[rNo][itemCounters[rNo]];
-      itemCounters[rNo]++;
-      if (choice && isPending_(data[k][COL.STATUS])) {
-        setItemDecision_(sheet, k, choice === 'Approve' ? 'Completed' : 'Rejected', approver, now);
-        notify[rNo] = data[k][COL.SENDER];
-      }
-    }
-    return notify;
-  });
+  var parts = [];
+  if (outcome.targets.approveCount) parts.push(outcome.targets.approveCount + ' item(s) approved');
+  if (outcome.targets.rejectCount) parts.push(outcome.targets.rejectCount + ' item(s) rejected');
+  return { ok: true, message: parts.join(' and ') + '. The requester has been notified.' };
+}
 
-  var processed = Object.keys(sendersToNotify);
-  if (processed.length === 0) return htmlPage_('Already processed', 'The selected items have already been processed.', true);
-  processed.forEach(function (rn) { sendDetailedNotificationEmail(rn, sendersToNotify[rn]); });
-  return htmlPage_('Done', 'Selected items have been processed successfully.', false);
+function renderConfirmPage_(act, targets, params) {
+  var titles = {
+    approve: { title: 'Confirm Approval', button: 'Confirm Approve', cls: 'btn-approve' },
+    reject: { title: 'Confirm Rejection', button: 'Confirm Reject', cls: 'btn-reject' },
+    partial: { title: 'Confirm Selections', button: 'Confirm Selections', cls: 'btn-main' }
+  };
+  var t = titles[act.type];
+
+  var summary = [];
+  if (targets.approveCount) summary.push('<span class="tag tag-approve">Approve ' + targets.approveCount + '</span>');
+  if (targets.rejectCount) summary.push('<span class="tag tag-reject">Reject ' + targets.rejectCount + '</span>');
+
+  var reqHtml = targets.requests.map(function (req) {
+    var itemsHtml = req.items.map(function (item) {
+      var isApprove = item.decision === 'Approve';
+      var sub = [];
+      if (item.invoice) sub.push('Inv: ' + esc_(item.invoice));
+      if (item.supplierName) sub.push('Sup: ' + esc_(item.supplierName));
+      return '<div class="item">' +
+        '<div class="item-main"><div class="item-desc">' + esc_(item.description) + '</div>' +
+        (sub.length ? '<div class="muted small">' + sub.join(' &middot; ') + '</div>' : '') + '</div>' +
+        '<div class="item-side"><div class="amount">' + money_(item.total) + '</div>' +
+        '<span class="tag ' + (isApprove ? 'tag-approve' : 'tag-reject') + '">' + (isApprove ? 'Approve' : 'Reject') + '</span></div>' +
+        '</div>';
+    }).join('');
+    return '<div class="req">' +
+      '<div class="req-head"><strong>' + esc_(req.reqNo) + '</strong> <span class="muted">(' + esc_(req.docType) + ')</span>' +
+      '<div class="muted small">Requestor Name: <span class="light">' + esc_(req.requestorName || '-') + '</span> &middot; Senders: <span class="light">' + esc_(req.senderName || '-') + '</span></div></div>' +
+      itemsHtml + '</div>';
+  }).join('');
+
+  var note = act.type === 'partial' ? '<p class="muted small">Items you did not select stay pending.</p>' : '';
+  var paramsJson = JSON.stringify(params).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+
+  var body =
+    '<div class="card" id="confirmCard">' +
+      '<h1 class="ig">' + t.title + '</h1>' +
+      '<p class="muted">Approver: <span class="light">' + esc_(act.approver) + '</span></p>' +
+      '<div class="summary">' + summary.join(' ') + '</div>' +
+      reqHtml +
+      '<div class="grand"><span>Total</span><span class="grand-amount">' + money_(targets.total) + ' THB</span></div>' +
+      note +
+      '<div id="message" class="message" role="status" aria-live="polite"></div>' +
+      '<div class="actions" id="actions">' +
+        '<button type="button" class="btn ' + t.cls + '" id="btnConfirm" onclick="confirmAction()">' + t.button + '</button>' +
+        '<button type="button" class="btn btn-cancel" id="btnCancel" onclick="cancelAction()">Cancel</button>' +
+      '</div>' +
+    '</div>' +
+    '<script>' +
+      'var PARAMS = ' + paramsJson + ';' +
+      'var LABEL = ' + JSON.stringify(t.button) + ';' +
+      'function setBusy(busy){var b=document.getElementById("btnConfirm");b.disabled=busy;document.getElementById("btnCancel").disabled=busy;b.textContent=busy?"Processing...":LABEL;}' +
+      'function showMessage(text,kind){var m=document.getElementById("message");m.textContent=text;m.className="message "+kind;}' +
+      'function finish(text,kind,title){document.getElementById("actions").style.display="none";showMessage(text,kind);if(title){document.querySelector("#confirmCard h1").textContent=title;}}' +
+      'function confirmAction(){setBusy(true);showMessage("","");' +
+        'google.script.run' +
+          '.withSuccessHandler(function(res){if(res&&res.ok){finish(res.message,"ok","Done");}else if(res&&res.retry){setBusy(false);showMessage(res.message+" Please try again.","error");}else{finish((res&&res.message)||"Something went wrong.","error");}})' +
+          '.withFailureHandler(function(err){setBusy(false);showMessage("Could not save: "+((err&&err.message)||"connection error")+". Please try again.","error");})' +
+          '.confirmEmailAction(PARAMS);}' +
+      'function cancelAction(){finish("No changes were made. You can close this window.","neutral","Cancelled");}' +
+    '</script>';
+
+  return pageShell_(t.title, body);
 }
 
 // ======================================================================
@@ -942,6 +1088,7 @@ function sendBatchApprovalEmail(requestsArray, approverGroup, sentBy, scriptUrl)
     "</div>" +
     "<div style='padding:25px; text-align:center; background:#f8f9fa; border-top:1px solid #eee;'>" +
     "<p style='margin-top:0; font-size:14px; font-weight:bold; color:#444;'>OR QUICK ACTION FOR ALL ITEMS ABOVE</p>" +
+    "<p style='margin-top:0; font-size:12px; color:#777;'>You will be asked to confirm on the next page before anything is saved.</p>" +
     "<a href=\"" + esc_(approveUrl) + "\" style=\"background:#28a745; color:#fff; padding:14px 35px; text-decoration:none; border-radius:30px; font-weight:bold; font-size:14px; margin:5px; display:inline-block;\">APPROVE ALL</a>" +
     "<a href=\"" + esc_(rejectUrl) + "\" style=\"background:#dc3545; color:#fff; padding:14px 35px; text-decoration:none; border-radius:30px; font-weight:bold; font-size:14px; margin:5px; display:inline-block;\">REJECT ALL</a>" +
     "</div></div>";
