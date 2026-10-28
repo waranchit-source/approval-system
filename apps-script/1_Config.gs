@@ -44,6 +44,8 @@ var DEFAULT_APPROVER = 'admin@paperplanebkk.com';
 var TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // login lasts 30 days
 var PASSWORD_ITERATIONS = 500;
 var MAX_FILE_BASE64_LENGTH = 7 * 1024 * 1024; // about 5MB of file data
+var MANUAL_PENDING = 'Pending (Manual)';
+var SUBMIT_CACHE_SECONDS = 21600;
 
 function setupDrivePermission() {
   var file = DriveApp.createFile("test_permission_approval_system.txt", "Test");
@@ -123,6 +125,10 @@ function isPending_(status) {
   return str_(status).indexOf('Pending') > -1;
 }
 
+function isManualPending_(status) {
+  return str_(status).indexOf(MANUAL_PENDING) === 0;
+}
+
 function isFinal_(status) {
   var s = str_(status);
   return s === 'Completed' || s === 'Rejected';
@@ -144,7 +150,11 @@ function withLock_(fn) {
   try {
     return fn();
   } finally {
-    lock.releaseLock();
+    try {
+      SpreadsheetApp.flush();
+    } finally {
+      lock.releaseLock();
+    }
   }
 }
 
@@ -160,6 +170,29 @@ function applyDecisions_(sheet, changes, approver, when) {
     var firstRow = run[0].rowIndex + 1;
     sheet.getRange(firstRow, COL.STATUS + 1, run.length, 1).setValues(run.map(function (c) { return [c.status]; }));
     sheet.getRange(firstRow, COL.APPROVER + 1, run.length, 2).setValues(run.map(function () { return [approver, when]; }));
+    i = j + 1;
+  }
+}
+
+function setStatuses_(sheet, changes) {
+  var sorted = changes.slice().sort(function (a, b) { return a.rowIndex - b.rowIndex; });
+  var i = 0;
+  while (i < sorted.length) {
+    var j = i;
+    while (j + 1 < sorted.length && sorted[j + 1].rowIndex === sorted[j].rowIndex + 1) j++;
+    var run = sorted.slice(i, j + 1);
+    sheet.getRange(run[0].rowIndex + 1, COL.STATUS + 1, run.length, 1).setValues(run.map(function (c) { return [c.status]; }));
+    i = j + 1;
+  }
+}
+
+function deleteRowNumbers_(sheet, rowNumbers) {
+  var sorted = rowNumbers.slice().sort(function (a, b) { return b - a; });
+  var i = 0;
+  while (i < sorted.length) {
+    var j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] - 1) j++;
+    sheet.deleteRows(sorted[j], j - i + 1);
     i = j + 1;
   }
 }

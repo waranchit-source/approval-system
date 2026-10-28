@@ -1,11 +1,13 @@
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMomI2MvGXepBVFbcJkQ2zGPc3e5TEz_tHsSaIjXb19RZ3lAv2A5_18vk1UC6Cew_H/exec';
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MANUAL_PENDING_STATUS = 'Pending (Manual)';
 
 let globalDropdownData = null;
 let itemCount = 0;
 let currentUser = null;
 let approvalModalInstance = null;
 let lastUserName = null;
+let currentSubmitId = null;
 window.dashboardData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('approvalForm')?.addEventListener('submit', handleFormSubmit);
     document.getElementById('modalApprovalForm')?.addEventListener('submit', handleModalSubmit);
     document.getElementById('btnBatchSend')?.addEventListener('click', handleBatchSend);
+    document.getElementById('btnBatchPrint')?.addEventListener('click', handleBatchPrint);
     document.getElementById('dashboardTableBody')?.addEventListener('click', handleDashboardAction);
 
     const requestorInput = document.getElementById('requestorName');
@@ -178,6 +181,11 @@ function formatDisplayDate(value) {
     if (!iso) return toText(value);
     const parts = iso.split('-');
     return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+function newSubmitId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2);
 }
 
 function safeStorageGet(storage, key) {
@@ -532,6 +540,7 @@ function resetCreateForm() {
     document.getElementById('itemsContainer').innerHTML = '';
     document.getElementById('senderName').value = (currentUser && currentUser.name) ? currentUser.name : '';
     document.getElementById('requestorName').value = '';
+    currentSubmitId = newSubmitId();
     itemCount = 0;
     addNewItem();
 }
@@ -778,7 +787,10 @@ async function handleFormSubmit(e) {
         const approverEmail = document.getElementById('approverEmail').value;
         if (!approverEmail) throw new Error("Please select an Approver");
 
+        if (!currentSubmitId) currentSubmitId = newSubmitId();
+
         const reqData = {
+            submitId: currentSubmitId,
             editReqNo: document.getElementById('editReqNo').value,
             // "requestorEmail" is kept as the key the backend already uses for the sender ("Requested By")
             requestorEmail: document.getElementById('senderName').value || currentUser.name || '',
@@ -896,6 +908,7 @@ window.editRequest = function(reqNo) {
     document.getElementById('approvalForm').reset();
     document.getElementById('statusMessage').innerText = '';
     document.getElementById('editReqNo').value = reqNo;
+    currentSubmitId = newSubmitId();
     document.querySelector('.page-title').innerText = 'Edit Request: ' + reqNo;
 
     // Keep the original sender when editing someone else's request
@@ -1004,6 +1017,11 @@ function renderDashboard(dataToRender) {
             reviewBtn = '<button type="button" class="btn btn-sm btn-outline-warning rounded-pill ms-1" data-action="review" data-reqno="' + escapeHtml(reqNo) + '" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>';
         }
 
+        let manualApproveBtn = '';
+        if (isManualPendingRequest(req)) {
+            manualApproveBtn = '<button type="button" class="btn btn-sm btn-outline-success rounded-pill ms-1" data-action="manual-approve" data-reqno="' + escapeHtml(reqNo) + '" title="Mark as Approved (signed document)"><i class="fa-solid fa-circle-check"></i> Approved</button>';
+        }
+
         let docTypeStr = req.docType ? req.docType : '-';
         let requestorNameStr = req.requestorName ? req.requestorName : '-';
 
@@ -1018,7 +1036,7 @@ function renderDashboard(dataToRender) {
             '<td class="text-end fw-bold text-light">' + formatMoney(req.grandTotal) + '</td>' +
             '<td class="text-center" style="white-space: nowrap;">' +
                 '<button type="button" class="btn btn-sm btn-outline-light rounded-pill" data-action="print" data-reqno="' + escapeHtml(reqNo) + '" title="Print PDF"><i class="fa-solid fa-print"></i></button>' +
-                editBtn + reviewBtn +
+                editBtn + reviewBtn + manualApproveBtn +
             '</td>';
         tbody.appendChild(tr);
     });
@@ -1032,6 +1050,290 @@ function handleDashboardAction(e) {
     if (action === 'print') printRequest(reqNo);
     if (action === 'edit') window.editRequest(reqNo);
     if (action === 'review') openReviewModal(reqNo);
+    if (action === 'manual-approve') handleManualApprove(reqNo, btn);
+}
+
+function isManualPendingRequest(req) {
+    return (req.items || []).some(item => toText(item.status).indexOf(MANUAL_PENDING_STATUS) === 0);
+}
+
+async function handleManualApprove(reqNo, btn) {
+    const req = findRequest(reqNo);
+    if (!req) return alert('Request data not found.');
+    if (!confirm('Change ' + reqNo + ' from Pending to Approved (Completed)?\nPlease confirm the Approver has signed the printed document.')) return;
+
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    try {
+        const result = await postToScript({ action: 'manualApprove', reqNo: reqNo });
+        if (result.status === 'success') {
+            alert(reqNo + ' has been marked as Approved (Completed).');
+            fetchDashboard();
+        } else {
+            alert('Error: ' + (result.message ? result.message : 'Unknown error.'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Network error while updating the status.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+async function handleBatchPrint() {
+    const checkedVals = Array.from(document.querySelectorAll('.req-cb:checked')).map(cb => cb.value);
+
+    if (checkedVals.length === 0) {
+        return alert("Please select at least one request to print.");
+    }
+
+    if (!confirm("Print " + checkedVals.length + " request(s) as PDF for manual approval?\nThe status will change to Pending.")) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert('Pop-up was blocked. Please allow pop-ups for this site to print.');
+        return;
+    }
+    try {
+        printWindow.document.title = 'Preparing document...';
+        printWindow.document.body.innerHTML = '<p style="font-family:Segoe UI,Tahoma,sans-serif;padding:30px;color:#495057;">Preparing document, please wait...</p>';
+    } catch (e) {
+        console.warn('Cannot write to the print window yet', e);
+    }
+
+    const btn = document.getElementById('btnBatchPrint');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Preparing...';
+    btn.disabled = true;
+
+    try {
+        const result = await postToScript({ action: 'printBatchRequest', reqNos: checkedVals });
+        if (result.status !== 'success') throw new Error(result.message ? result.message : 'Unknown error.');
+
+        const printedReqNos = (Array.isArray(result.reqNos) && result.reqNos.length ? result.reqNos.map(toText) : checkedVals.slice())
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const refreshed = await postToScript({ action: 'getRequests' });
+        if (refreshed.status === 'success' && Array.isArray(refreshed.data)) {
+            window.dashboardData = refreshed.data;
+            const searchInput = document.getElementById('searchDashboard');
+            if (searchInput && searchInput.value) {
+                searchInput.dispatchEvent(new Event('input'));
+            } else {
+                renderDashboard(window.dashboardData);
+            }
+        }
+
+        const requests = printedReqNos.map(findRequest).filter(Boolean);
+        const html = buildApprovalPrintHtml(requests);
+        if (!html) throw new Error('All items in the selected requests were rejected. Nothing to print.');
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+    } catch (err) {
+        console.error(err);
+        printWindow.close();
+        alert('Error: ' + (err.message === 'Failed to fetch' ? 'Cannot connect to server.' : err.message));
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+}
+
+function buildApprovalPrintHtml(requests) {
+    let sectionsHtml = '';
+    const printedReqNos = [];
+    let grandAmt = 0;
+    let grandVat = 0;
+    let grandWht = 0;
+    let grandTotal = 0;
+    let itemTotalCount = 0;
+
+    requests.forEach(req => {
+        const validItems = (req.items || []).filter(item => item.status !== 'Rejected');
+        if (validItems.length === 0) return;
+
+        const reqNo = toText(req.reqNo);
+        printedReqNos.push(reqNo);
+
+        let itemsRows = '';
+        let sumAmt = 0;
+        let sumVat = 0;
+        let sumWht = 0;
+        let sumTotal = 0;
+
+        validItems.forEach((item, index) => {
+            sumAmt += toNumber(item.amount);
+            sumVat += toNumber(item.vat);
+            sumWht += toNumber(item.wht);
+            sumTotal += toNumber(item.total);
+            itemTotalCount++;
+
+            const formattedPayDate = formatDisplayDate(item.paymentDate);
+            const detailRow = (label, value, extraStyle) =>
+                '<tr><td style="color:#adb5bd; padding-right:5px;' + (extraStyle || '') + '">' + label + '</td><td style="color:#495057;">' + escapeHtml(value) + '</td></tr>';
+
+            let detailsHtml = '';
+            if (formattedPayDate) detailsHtml += detailRow('PAY DATE:', formattedPayDate, ' width:60px;');
+            if (item.companyName) detailsHtml += detailRow('COMPANY:', item.companyName);
+            if (item.supplierName) detailsHtml += detailRow('SUPPLIER:', item.supplierName);
+            if (item.invoice) detailsHtml += detailRow('INV:', item.invoice);
+            if (item.department) detailsHtml += detailRow('DEPT:', item.department);
+            if (item.branch) detailsHtml += detailRow('BRANCH:', item.branch);
+            if (item.paymentMethod) detailsHtml += detailRow('PAYMENT:', item.paymentMethod);
+            if (item.bank) detailsHtml += detailRow('BANK:', item.bank);
+            if (item.accName) detailsHtml += detailRow('A/C NAME:', item.accName);
+            if (item.accNo) detailsHtml += detailRow('A/C NO:', item.accNo);
+            if (item.remarks) detailsHtml += detailRow('REMARKS:', item.remarks);
+
+            const itemStatus = toText(item.status).indexOf('Pending') > -1 ? 'Pending' : toText(item.status);
+            const statusColor = itemStatus === 'Completed' ? '#28a745' : '#f09433';
+
+            itemsRows +=
+                '<tr>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057; text-align: center;">' + (index + 1) + '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">' +
+                        '<div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">' + escapeHtml(item.description) + '</div>' +
+                        '<table style="width:100%; border:none; margin:0; font-size:10px; line-height:1.2;">' + detailsHtml + '</table>' +
+                    '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.amount) + '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.vat) + '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.wht) + '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 700; color: #212529;">' + formatMoney(item.total) + '</td>' +
+                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: center; vertical-align: top; font-weight: 700; color: ' + statusColor + '">' + escapeHtml(itemStatus) + '</td>' +
+                '</tr>';
+        });
+
+        grandAmt += sumAmt;
+        grandVat += sumVat;
+        grandWht += sumWht;
+        grandTotal += sumTotal;
+
+        const docTypeStr = req.docType && req.docType !== '-' ? req.docType : 'Payment Voucher';
+        const requestorNameStr = req.requestorName ? req.requestorName : '-';
+
+        sectionsHtml +=
+            '<div class="ref-section">' +
+                '<table class="main-table">' +
+                    '<thead>' +
+                        '<tr><td colspan="7" class="ref-head-cell">' +
+                            '<div class="ref-head">' +
+                                '<div><span class="ref-no">' + escapeHtml(reqNo) + '</span> <span class="ref-type">(' + escapeHtml(docTypeStr) + ')</span></div>' +
+                                '<div class="ref-meta">' +
+                                    'Requestor Name: <strong>' + escapeHtml(requestorNameStr) + '</strong> &nbsp;|&nbsp; ' +
+                                    'Senders: <strong>' + escapeHtml(req.requestor) + '</strong> &nbsp;|&nbsp; ' +
+                                    'Date: <strong>' + escapeHtml(formatDisplayDate(req.date)) + '</strong>' +
+                                '</div>' +
+                            '</div>' +
+                        '</td></tr>' +
+                        '<tr>' +
+                            '<th style="text-align: center; width: 5%;">#</th>' +
+                            '<th style="text-align: left; width: 40%;">Description & Details</th>' +
+                            '<th style="text-align: right; width: 11%;">Amount</th>' +
+                            '<th style="text-align: right; width: 11%;">VAT(7%)</th>' +
+                            '<th style="text-align: right; width: 11%;">WHT</th>' +
+                            '<th style="text-align: right; width: 12%;">Total</th>' +
+                            '<th style="text-align: center; width: 10%;">Item Status</th>' +
+                        '</tr>' +
+                    '</thead>' +
+                    itemsRows +
+                    '<tr class="subtotal-row">' +
+                        '<td colspan="2" style="padding: 8px 6px; text-align: right; color: #6c757d;">Subtotal ' + escapeHtml(reqNo) + '</td>' +
+                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumAmt) + '</td>' +
+                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumVat) + '</td>' +
+                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumWht) + '</td>' +
+                        '<td style="padding: 8px 6px; text-align: right; font-weight: 700; color: #212529;">' + formatMoney(sumTotal) + '</td>' +
+                        '<td></td>' +
+                    '</tr>' +
+                '</table>' +
+            '</div>';
+    });
+
+    if (!sectionsHtml) return '';
+
+    const docTitle = ('Approval_' + printedReqNos.join('_')).slice(0, 120);
+
+    return '<!DOCTYPE html>' +
+        '<html><head><meta charset="UTF-8"><title>' + escapeHtml(docTitle) + '</title>' +
+        '<style>' +
+            '@media print { ' +
+                '@page { margin: 15mm; size: A4 portrait; }' +
+                'body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }' +
+                '.doc { min-height: 255mm; }' +
+            '}' +
+            'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #212529; max-width: 210mm; margin: 0 auto; }' +
+            '.doc { display: flex; flex-direction: column; }' +
+            '.doc-content { flex: 1 0 auto; }' +
+            '.header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; }' +
+            '.details-box { background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 15px; }' +
+            '.details-box p { margin: 0; font-size: 11px; }' +
+            '.lbl { color: #6c757d; display: inline-block; width: 95px; }' +
+            '.status-badge { font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 10px; background-color: #fff3cd; color: #664d03; }' +
+            '.ref-section { margin-bottom: 22px; }' +
+            '.ref-head-cell { padding: 0 0 4px 0; }' +
+            '.ref-head { background: #f1f3f5; border-radius: 6px; padding: 8px 12px; }' +
+            '.ref-no { font-weight: 700; font-size: 14px; color: #212529; }' +
+            '.ref-type { font-size: 12px; color: #6c757d; }' +
+            '.ref-meta { font-size: 10px; color: #6c757d; margin-top: 3px; }' +
+            '.main-table { width: 100%; border-collapse: collapse; font-size: 11px; }' +
+            '.main-table th { color: #adb5bd; border-bottom: 2px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }' +
+            '.main-table td table td { padding: 2px 0; border: none; }' +
+            '.main-table tr { page-break-inside: avoid; break-inside: avoid; }' +
+            '.subtotal-row td { font-size: 11px; border-top: 1px solid #dee2e6; }' +
+            '.doc-closing { page-break-inside: avoid; break-inside: avoid; }' +
+            '.summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }' +
+            '.summary-box { width: 260px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }' +
+            '.summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }' +
+            '.summary-total { display: flex; justify-content: space-between; padding: 10px 12px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }' +
+            '.total-amount-color { color: #dc3545; }' +
+            '.sign-area { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 12px; border-top: 1px dashed #dee2e6; }' +
+            '.sign-box { width: 320px; border: 1px solid #adb5bd; border-radius: 6px; padding: 10px 16px; text-align: center; font-size: 11px; color: #495057; }' +
+            '.sign-title { font-weight: 700; font-size: 12px; color: #212529; margin-bottom: 4px; text-transform: uppercase; }' +
+            '.sign-line { border-bottom: 1px solid #212529; height: 50px; margin: 0 10px; }' +
+            '.sign-caption { font-size: 9px; color: #adb5bd; margin-top: 3px; text-transform: uppercase; }' +
+            '.sign-name { margin-top: 8px; }' +
+            '.sign-meta { margin-top: 6px; }' +
+        '</style></head><body>' +
+            '<div class="doc">' +
+                '<div class="doc-content">' +
+                    '<div class="header">' +
+                        '<div>' +
+                            '<h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>' +
+                            '<h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">' + escapeHtml(printedReqNos.join(', ')) + '</h2>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="details-box">' +
+                        '<p><span class="lbl">Requests:</span> <strong>' + printedReqNos.length + '</strong> (' + itemTotalCount + ' items)</p>' +
+                        '<p><span class="lbl">Overall Status:</span> <span class="status-badge">Pending</span></p>' +
+                        '<p><span class="lbl">Printed:</span> <strong>' + escapeHtml(formatDisplayDate(new Date())) + '</strong></p>' +
+                    '</div>' +
+                    sectionsHtml +
+                '</div>' +
+                '<div class="doc-closing">' +
+                    '<div class="summary-wrapper">' +
+                        '<div class="summary-box">' +
+                            '<div class="summary-row"><span>Amount (Excl. VAT)</span><span style="font-weight: 600;">' + formatMoney(grandAmt) + '</span></div>' +
+                            '<div class="summary-row"><span>VAT (7%)</span><span style="font-weight: 600;">' + formatMoney(grandVat) + '</span></div>' +
+                            '<div class="summary-row"><span>Withholding Tax</span><span style="font-weight: 600;">' + formatMoney(grandWht) + '</span></div>' +
+                            '<div class="summary-total"><span>GRAND TOTAL</span><span class="total-amount-color">' + formatMoney(grandTotal) + ' THB</span></div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="sign-area">' +
+                        '<div class="sign-box">' +
+                            '<div class="sign-title">Approver</div>' +
+                            '<div class="sign-line"></div>' +
+                            '<div class="sign-caption">Signature</div>' +
+                            '<div class="sign-name">( ................................................................ )</div>' +
+                            '<div class="sign-meta">Date: ........ / ........ / ............</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }<\/script>' +
+        '</body></html>';
 }
 
 function openReviewModal(reqNo) {
