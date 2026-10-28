@@ -16,6 +16,8 @@
 3. Deploy > Manage deployments > แก้ไข deployment เดิม > Version: **New version** > Deploy
    (Execute as: Me, Who has access: Anyone) — URL จะเหมือนเดิม จึงไม่ต้องแก้ `SCRIPT_URL` ใน `app.js`
 4. หน้าเว็บ (`index.html`, `style.css`, `app.js`) ขึ้นเว็บอัตโนมัติผ่าน GitHub Pages เมื่ออัปเดต branch `main`
+   ทุกครั้งที่แก้ `app.js` หรือ `style.css` ให้เปลี่ยนเลข `?v=` ใน `index.html` ด้วย
+   (GitHub Pages ให้เบราว์เซอร์จำไฟล์ไว้ 10 นาที ถ้าไม่เปลี่ยนเลข ผู้ใช้อาจได้ไฟล์เก่าปนไฟล์ใหม่และปุ่มใหม่จะกดไม่ทำงาน)
 
 ## ชีทที่ใช้
 - **Approval** – รายการคำขอ (คอลัมน์ Z "Requestor Name" ถูกสร้างอัตโนมัติ)

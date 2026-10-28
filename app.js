@@ -8,6 +8,7 @@ let currentUser = null;
 let approvalModalInstance = null;
 let lastUserName = null;
 let currentSubmitId = null;
+let dashboardStatusFilter = 'all';
 window.dashboardData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -56,6 +57,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnBatchSend')?.addEventListener('click', handleBatchSend);
     document.getElementById('btnBatchPrint')?.addEventListener('click', handleBatchPrint);
     document.getElementById('dashboardTableBody')?.addEventListener('click', handleDashboardAction);
+    document.getElementById('dashboardTableBody')?.addEventListener('change', (e) => {
+        if (e.target.classList.contains('req-cb')) updateSelectionUI();
+    });
+    document.getElementById('selectAllReq')?.addEventListener('change', (e) => {
+        document.querySelectorAll('.req-cb').forEach(cb => { cb.checked = e.target.checked; });
+        updateSelectionUI();
+    });
+    document.querySelectorAll('.status-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            dashboardStatusFilter = tab.getAttribute('data-status') || 'all';
+            document.querySelectorAll('.status-tab').forEach(t => {
+                const isActive = t === tab;
+                t.classList.toggle('active', isActive);
+                t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+            applyDashboardFilters();
+        });
+    });
+    document.getElementById('itemsContainer')?.addEventListener('input', updateFormTotals);
+    document.getElementById('sidebarBackdrop')?.addEventListener('click', closeMobileSidebar);
 
     const requestorInput = document.getElementById('requestorName');
     if (requestorInput) {
@@ -78,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if(window.innerWidth <= 768) {
-                    document.getElementById('sidebarMenu').classList.remove('show');
+                    closeMobileSidebar();
                 }
             });
         }
@@ -93,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.page-title').innerText = 'Dashboard';
         fetchDashboard();
         if(window.innerWidth <= 768) {
-            document.getElementById('sidebarMenu').classList.remove('show');
+            closeMobileSidebar();
         }
     });
 
@@ -105,18 +126,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMobileToggle')?.addEventListener('click', () => {
         document.getElementById('sidebarMenu').classList.add('show');
         document.getElementById('sidebarMenu').classList.remove('collapsed');
+        document.getElementById('sidebarBackdrop')?.classList.add('show');
     });
 
-    document.getElementById('searchDashboard')?.addEventListener('input', (e) => {
-        const keyword = e.target.value.trim().toLowerCase();
-        const filtered = window.dashboardData.filter(req => {
-            return toText(req.reqNo).toLowerCase().includes(keyword) ||
-                   formatDisplayDate(req.date).includes(keyword) ||
-                   toText(req.requestor).toLowerCase().includes(keyword) ||
-                   toText(req.requestorName).toLowerCase().includes(keyword);
-        });
-        renderDashboard(filtered);
-    });
+    document.getElementById('searchDashboard')?.addEventListener('input', applyDashboardFilters);
 
     if(document.getElementById('approvalModal') && window.bootstrap) {
         approvalModalInstance = new bootstrap.Modal(document.getElementById('approvalModal'));
@@ -186,6 +199,47 @@ function formatDisplayDate(value) {
 function newSubmitId() {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
     return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2);
+}
+
+function showToast(message, type) {
+    const stack = document.getElementById('toastStack');
+    if (!stack) return;
+    const kind = type || 'success';
+    const icon = kind === 'error' ? 'fa-circle-exclamation' : (kind === 'info' ? 'fa-circle-info' : 'fa-circle-check');
+    const toast = document.createElement('div');
+    toast.className = 'app-toast toast-' + kind;
+    toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    toast.innerHTML = '<i class="fa-solid ' + icon + '" aria-hidden="true"></i><div>' + escapeHtml(message) + '</div>';
+    stack.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('is-leaving');
+        setTimeout(() => toast.remove(), 200);
+    }, kind === 'error' ? 6000 : 4000);
+}
+
+function closeMobileSidebar() {
+    document.getElementById('sidebarMenu')?.classList.remove('show');
+    document.getElementById('sidebarBackdrop')?.classList.remove('show');
+}
+
+function initialsOf(name) {
+    const parts = toText(name).replace(/\(.*?\)/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    const first = parts[0].charAt(0);
+    const second = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+    return (first + second).toUpperCase();
+}
+
+function updateFormTotals() {
+    let grand = 0;
+    document.querySelectorAll('#itemsContainer .item-block').forEach(block => {
+        const total = toNumber(block.querySelector('.item-amt').value) + toNumber(block.querySelector('.item-vat').value) - toNumber(block.querySelector('.item-wht').value);
+        grand += total;
+        const headTotal = block.querySelector('.item-head-total');
+        if (headTotal) headTotal.innerText = formatMoney(total);
+    });
+    const grandEl = document.getElementById('formGrandTotal');
+    if (grandEl) grandEl.innerText = formatMoney(grand);
 }
 
 function safeStorageGet(storage, key) {
@@ -382,6 +436,9 @@ function showAppScreen() {
     const roleBadge = document.getElementById('userRoleBadge');
     if(roleBadge) roleBadge.innerText = currentUser.role ? currentUser.role : 'User';
 
+    const avatar = document.getElementById('userAvatar');
+    if(avatar) avatar.innerText = initialsOf(currentUser.name);
+
     const senderInput = document.getElementById('senderName');
     if(senderInput) senderInput.value = currentUser.name ? currentUser.name : '';
 
@@ -511,18 +568,18 @@ async function handleRegister(e) {
         });
 
         if (result.status === 'success') {
-            alertBox.className = 'alert alert-success';
+            alertBox.className = 'alert alert-success app-alert';
             alertBox.innerText = 'Registration success! Wait for Admin approval.';
             alertBox.style.display = 'block';
             document.getElementById('registerForm').reset();
         } else {
-            alertBox.className = 'alert alert-danger';
+            alertBox.className = 'alert alert-danger app-alert';
             alertBox.innerText = result.message ? result.message : 'Registration failed.';
             alertBox.style.display = 'block';
         }
     } catch (error) {
         console.error(error);
-        alertBox.className = 'alert alert-danger';
+        alertBox.className = 'alert alert-danger app-alert';
         alertBox.innerText = 'System error.';
         alertBox.style.display = 'block';
     } finally {
@@ -543,6 +600,7 @@ function resetCreateForm() {
     currentSubmitId = newSubmitId();
     itemCount = 0;
     addNewItem();
+    updateFormTotals();
 }
 
 function addNewItem() {
@@ -558,10 +616,11 @@ function addNewItem() {
 
     if (itemCount > 1) {
         const removeBtn = block.querySelector('.btn-remove-item');
-        removeBtn.style.display = 'block';
+        removeBtn.style.display = 'inline-flex';
         removeBtn.addEventListener('click', function() {
             block.remove();
             updateItemNumbers();
+            updateFormTotals();
         });
 
         // Copy payment details from the first item (after the selects have their options)
@@ -665,6 +724,7 @@ function setupItemCalculations(block) {
         let vat = parseFloat(vatInput.value) ? parseFloat(vatInput.value) : 0;
         let wht = parseFloat(whtInput.value) ? parseFloat(whtInput.value) : 0;
         totalInput.value = (amt + vat - wht).toFixed(2);
+        updateFormTotals();
     }
     amtInput.addEventListener('input', () => {
         let amt = parseFloat(amtInput.value) ? parseFloat(amtInput.value) : 0;
@@ -768,7 +828,7 @@ async function handleFormSubmit(e) {
     if (btnSubmit.disabled) return;
     if (!currentUser) {
         statusMsg.innerText = 'Error: Session expired. Please login again.';
-        statusMsg.className = 'fw-bold text-danger';
+        statusMsg.className = 'status-message text-danger';
         return;
     }
 
@@ -848,17 +908,17 @@ async function handleFormSubmit(e) {
         if (result.status === 'success') {
             resetCreateForm();
             statusMsg.innerText = "Success! Saved " + toText(result.reqNo);
-            statusMsg.className = 'fw-bold text-success';
+            statusMsg.className = 'status-message text-success';
         } else {
             throw new Error(result.message ? result.message : 'Server error.');
         }
     } catch (error) {
         console.error(error);
         statusMsg.innerText = 'Error: ' + (error.message === 'Failed to fetch' ? 'Cannot connect to server.' : error.message);
-        statusMsg.className = 'fw-bold text-danger';
+        statusMsg.className = 'status-message text-danger';
     } finally {
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = 'Save Request (Draft) <i class="fa-solid fa-save ms-2"></i>';
+        btnSubmit.innerHTML = 'Save Request (Draft) <i class="fa-solid fa-floppy-disk ms-2" aria-hidden="true"></i>';
     }
 }
 
@@ -869,31 +929,31 @@ async function handleBatchSend() {
     const checkedVals = Array.from(checkedBoxes).map(cb => cb.value);
 
     if(checkedVals.length === 0) {
-        return alert("Please select at least one request to send or resend.");
+        return showToast("Please select at least one request to send or resend.", 'info');
     }
 
     if(!confirm("Send " + checkedVals.length + " request(s) to Approver?")) return;
 
     const btn = document.getElementById('btnBatchSend');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Sending...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>Sending...</span>';
     btn.disabled = true;
 
     try {
         const result = await postToScript({ action: 'batchSendRequest', reqNos: checkedVals });
 
         if(result.status === 'success') {
-            alert('Approval email sent successfully!');
+            showToast('Approval email sent for ' + checkedVals.length + ' request(s).');
             fetchDashboard();
         } else {
-            alert('Error: ' + (result.message ? result.message : 'Unknown error.'));
+            showToast('Error: ' + (result.message ? result.message : 'Unknown error.'), 'error');
         }
     } catch(err) {
         console.error(err);
-        alert('Network error while sending email.');
+        showToast('Network error while sending email.', 'error');
     } finally {
         btn.innerHTML = originalHtml;
-        btn.disabled = false;
+        updateSelectionUI();
     }
 }
 
@@ -952,6 +1012,7 @@ window.editRequest = function(reqNo) {
     });
 
     if (itemCount === 0) addNewItem();
+    updateFormTotals();
 
     document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.sidemenu-btn[data-target="formSection"]').classList.add('active');
@@ -962,33 +1023,105 @@ window.editRequest = function(reqNo) {
 async function fetchDashboard() {
     const tbody = document.getElementById('dashboardTableBody');
     if (!currentUser) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading data...</td></tr>';
+    updateSelectionUI();
 
     try {
         const result = await postToScript({ action: 'getRequests' });
 
         if (result.status === 'success') {
             window.dashboardData = Array.isArray(result.data) ? result.data : [];
-            const searchInput = document.getElementById('searchDashboard');
-            if (searchInput && searchInput.value) {
-                searchInput.dispatchEvent(new Event('input'));
-            } else {
-                renderDashboard(window.dashboardData);
-            }
+            applyDashboardFilters();
         } else {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-danger">' + escapeHtml(result.message ? result.message : 'Failed to load data.') + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>' + escapeHtml(result.message ? result.message : 'Failed to load data.') + '</td></tr>';
         }
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-danger">Failed to load data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>Failed to load data. Please press Refresh.</td></tr>';
     }
+}
+
+function statusGroup(status) {
+    const s = toText(status);
+    if (s === 'Draft' || s === 'Pending' || s === 'Completed') return s;
+    return 'Other';
+}
+
+function applyDashboardFilters() {
+    const searchInput = document.getElementById('searchDashboard');
+    const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const counts = { all: 0, Draft: 0, Pending: 0, Completed: 0, Other: 0 };
+
+    const matched = window.dashboardData.filter(req => {
+        return !keyword ||
+               toText(req.reqNo).toLowerCase().includes(keyword) ||
+               formatDisplayDate(req.date).includes(keyword) ||
+               toText(req.requestor).toLowerCase().includes(keyword) ||
+               toText(req.requestorName).toLowerCase().includes(keyword);
+    });
+    matched.forEach(req => {
+        counts.all++;
+        counts[statusGroup(req.status)]++;
+    });
+    document.querySelectorAll('.tab-count').forEach(el => {
+        el.innerText = counts[el.getAttribute('data-count')] || 0;
+    });
+
+    const filtered = dashboardStatusFilter === 'all' ? matched : matched.filter(req => statusGroup(req.status) === dashboardStatusFilter);
+    renderDashboard(filtered);
+}
+
+function statusPillHtml(req) {
+    const status = toText(req.status);
+    const map = {
+        Draft: { cls: 'status-draft', icon: 'fa-file-pen' },
+        Pending: { cls: 'status-pending', icon: 'fa-hourglass-half' },
+        Completed: { cls: 'status-completed', icon: 'fa-circle-check' },
+        Rejected: { cls: 'status-rejected', icon: 'fa-circle-xmark' },
+        Partial: { cls: 'status-partial', icon: 'fa-circle-half-stroke' }
+    };
+    const conf = map[status] || map.Pending;
+    let note = '';
+    if (status === 'Pending') note = isManualPendingRequest(req) ? 'Awaiting signature' : 'Sent by email';
+    return '<div class="status-cell"><span class="status-pill ' + conf.cls + '"><i class="fa-solid ' + conf.icon + '" aria-hidden="true"></i>' + escapeHtml(status || '-') + '</span>' +
+        (note ? '<span class="status-note">' + note + '</span>' : '') + '</div>';
+}
+
+function getSelectedReqNos() {
+    return Array.from(document.querySelectorAll('.req-cb:checked')).map(cb => cb.value);
+}
+
+function updateSelectionUI() {
+    const boxes = Array.from(document.querySelectorAll('.req-cb'));
+    const selected = boxes.filter(cb => cb.checked);
+    boxes.forEach(cb => {
+        const row = cb.closest('tr');
+        if (row) row.classList.toggle('is-selected', cb.checked);
+    });
+
+    const selectAll = document.getElementById('selectAllReq');
+    if (selectAll) {
+        selectAll.checked = boxes.length > 0 && selected.length === boxes.length;
+        selectAll.indeterminate = selected.length > 0 && selected.length < boxes.length;
+        selectAll.disabled = boxes.length === 0;
+    }
+
+    const countEl = document.getElementById('selectedCount');
+    if (countEl) countEl.innerText = selected.length === 0 ? 'No requests selected' : selected.length + ' request(s) selected';
+    document.getElementById('bulkBar')?.classList.toggle('has-selection', selected.length > 0);
+
+    ['btnBatchSend', 'btnBatchPrint'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn && !btn.querySelector('.fa-spin')) btn.disabled = selected.length === 0;
+    });
 }
 
 function renderDashboard(dataToRender) {
     const tbody = document.getElementById('dashboardTableBody');
     tbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-secondary">No requests found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-regular fa-folder-open" aria-hidden="true"></i>No requests found.</td></tr>';
+        updateSelectionUI();
         return;
     }
 
@@ -996,50 +1129,44 @@ function renderDashboard(dataToRender) {
         const reqNo = toText(req.reqNo);
         const status = toText(req.status);
         const date = formatDisplayDate(req.date);
-        let bClass = 'bg-warning text-dark';
-        if (status === 'Completed') bClass = 'bg-success text-white';
-        if (status === 'Rejected') bClass = 'bg-danger text-white';
-        if (status === 'Draft') bClass = 'bg-secondary text-white';
+        const reqAttr = escapeHtml(reqNo);
 
-        let cbHtml = '<i class="fa-solid fa-check text-success opacity-75"></i>';
+        let cbHtml = '<i class="fa-solid fa-check done-mark" aria-label="Completed"></i>';
         if (status !== 'Completed') {
-            cbHtml = '<input type="checkbox" class="form-check-input req-cb" style="cursor:pointer;" value="' + escapeHtml(reqNo) + '" />';
+            cbHtml = '<input type="checkbox" class="form-check-input req-cb" value="' + reqAttr + '" aria-label="Select ' + reqAttr + '" />';
         }
 
-        let editBtn = '';
+        let actions = '<button type="button" class="icon-btn" data-action="print" data-reqno="' + reqAttr + '" title="Print this request" aria-label="Print ' + reqAttr + '"><i class="fa-solid fa-print" aria-hidden="true"></i></button>';
+
         if (status !== 'Completed') {
-            editBtn = '<button type="button" class="btn btn-sm btn-outline-primary rounded-pill ms-1" data-action="edit" data-reqno="' + escapeHtml(reqNo) + '" title="Edit Request"><i class="fa-solid fa-pen"></i></button>';
+            actions += '<button type="button" class="icon-btn" data-action="edit" data-reqno="' + reqAttr + '" title="Edit request" aria-label="Edit ' + reqAttr + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>';
         }
 
-        let reviewBtn = '';
         // Only Admin can approve inside the system (requesters must not approve their own requests)
         if (currentUser && currentUser.role === 'Admin') {
-            reviewBtn = '<button type="button" class="btn btn-sm btn-outline-warning rounded-pill ms-1" data-action="review" data-reqno="' + escapeHtml(reqNo) + '" title="Review Items"><i class="fa-solid fa-list-check"></i> Review</button>';
+            actions += '<button type="button" class="btn-chip btn-chip-review" data-action="review" data-reqno="' + reqAttr + '" title="Review items"><i class="fa-solid fa-list-check" aria-hidden="true"></i>Review</button>';
         }
 
-        let manualApproveBtn = '';
         if (isManualPendingRequest(req)) {
-            manualApproveBtn = '<button type="button" class="btn btn-sm btn-outline-success rounded-pill ms-1" data-action="manual-approve" data-reqno="' + escapeHtml(reqNo) + '" title="Mark as Approved (signed document)"><i class="fa-solid fa-circle-check"></i> Approved</button>';
+            actions += '<button type="button" class="btn-chip btn-chip-approve" data-action="manual-approve" data-reqno="' + reqAttr + '" title="Mark as Approved (signed document)"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Approved</button>';
         }
 
-        let docTypeStr = req.docType ? req.docType : '-';
+        let docTypeStr = req.docType && req.docType !== '-' ? req.docType : '-';
         let requestorNameStr = req.requestorName ? req.requestorName : '-';
 
         const tr = document.createElement('tr');
         tr.innerHTML =
-            '<td class="text-center">' + cbHtml + '</td>' +
-            '<td class="fw-bold ig-text">' + escapeHtml(reqNo) + '<br /><small class="text-muted" style="font-size:10px;">' + escapeHtml(docTypeStr) + '</small></td>' +
-            '<td class="text-light">' + escapeHtml(date) + '</td>' +
-            '<td class="text-light">' + escapeHtml(req.requestor) + '</td>' +
-            '<td class="text-light">' + escapeHtml(requestorNameStr) + '</td>' +
-            '<td><span class="badge ' + bClass + ' rounded-pill px-3">' + escapeHtml(status) + '</span></td>' +
-            '<td class="text-end fw-bold text-light">' + formatMoney(req.grandTotal) + '</td>' +
-            '<td class="text-center" style="white-space: nowrap;">' +
-                '<button type="button" class="btn btn-sm btn-outline-light rounded-pill" data-action="print" data-reqno="' + escapeHtml(reqNo) + '" title="Print PDF"><i class="fa-solid fa-print"></i></button>' +
-                editBtn + reviewBtn + manualApproveBtn +
-            '</td>';
+            '<td class="col-check">' + cbHtml + '</td>' +
+            '<td class="cell-ref" data-label="Req No."><span class="ref-no">' + reqAttr + '</span><span class="doc-type">' + escapeHtml(docTypeStr) + '</span></td>' +
+            '<td class="cell-muted" data-label="Date">' + escapeHtml(date) + '</td>' +
+            '<td data-label="Senders">' + escapeHtml(req.requestor) + '</td>' +
+            '<td data-label="Requestor Name">' + escapeHtml(requestorNameStr) + '</td>' +
+            '<td data-label="Status">' + statusPillHtml(req) + '</td>' +
+            '<td class="cell-num" data-label="Total (THB)">' + formatMoney(req.grandTotal) + '</td>' +
+            '<td class="cell-actions text-end" data-label="Actions"><div class="row-actions">' + actions + '</div></td>';
         tbody.appendChild(tr);
     });
+    updateSelectionUI();
 }
 
 function handleDashboardAction(e) {
@@ -1059,54 +1186,67 @@ function isManualPendingRequest(req) {
 
 async function handleManualApprove(reqNo, btn) {
     const req = findRequest(reqNo);
-    if (!req) return alert('Request data not found.');
+    if (!req) return showToast('Request data not found.', 'error');
     if (!confirm('Change ' + reqNo + ' from Pending to Approved (Completed)?\nPlease confirm the Approver has signed the printed document.')) return;
 
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving...';
 
     try {
         const result = await postToScript({ action: 'manualApprove', reqNo: reqNo });
         if (result.status === 'success') {
-            alert(reqNo + ' has been marked as Approved (Completed).');
+            showToast(reqNo + ' has been marked as Approved (Completed).');
             fetchDashboard();
         } else {
-            alert('Error: ' + (result.message ? result.message : 'Unknown error.'));
+            showToast('Error: ' + (result.message ? result.message : 'Unknown error.'), 'error');
         }
     } catch (err) {
         console.error(err);
-        alert('Network error while updating the status.');
+        showToast('Network error while updating the status.', 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalHtml;
     }
 }
 
+function printHtmlInFrame(html, title) {
+    return new Promise(resolve => {
+        document.querySelectorAll('iframe.print-frame').forEach(f => f.remove());
+        const frame = document.createElement('iframe');
+        frame.className = 'print-frame';
+        frame.setAttribute('aria-hidden', 'true');
+        frame.setAttribute('tabindex', '-1');
+        frame.onload = () => {
+            setTimeout(() => {
+                const pageTitle = document.title;
+                document.title = title;
+                try {
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                } finally {
+                    document.title = pageTitle;
+                    resolve();
+                }
+            }, 300);
+        };
+        frame.srcdoc = html;
+        document.body.appendChild(frame);
+    });
+}
+
 async function handleBatchPrint() {
-    const checkedVals = Array.from(document.querySelectorAll('.req-cb:checked')).map(cb => cb.value);
+    const checkedVals = getSelectedReqNos();
 
     if (checkedVals.length === 0) {
-        return alert("Please select at least one request to print.");
+        return showToast("Please select at least one request to print.", 'info');
     }
 
     if (!confirm("Print " + checkedVals.length + " request(s) as PDF for manual approval?\nThe status will change to Pending.")) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        alert('Pop-up was blocked. Please allow pop-ups for this site to print.');
-        return;
-    }
-    try {
-        printWindow.document.title = 'Preparing document...';
-        printWindow.document.body.innerHTML = '<p style="font-family:Segoe UI,Tahoma,sans-serif;padding:30px;color:#495057;">Preparing document, please wait...</p>';
-    } catch (e) {
-        console.warn('Cannot write to the print window yet', e);
-    }
-
     const btn = document.getElementById('btnBatchPrint');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Preparing...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>Preparing...</span>';
     btn.disabled = true;
 
     try {
@@ -1118,28 +1258,22 @@ async function handleBatchPrint() {
         const refreshed = await postToScript({ action: 'getRequests' });
         if (refreshed.status === 'success' && Array.isArray(refreshed.data)) {
             window.dashboardData = refreshed.data;
-            const searchInput = document.getElementById('searchDashboard');
-            if (searchInput && searchInput.value) {
-                searchInput.dispatchEvent(new Event('input'));
-            } else {
-                renderDashboard(window.dashboardData);
-            }
         }
 
         const requests = printedReqNos.map(findRequest).filter(Boolean);
         const html = buildApprovalPrintHtml(requests);
         if (!html) throw new Error('All items in the selected requests were rejected. Nothing to print.');
 
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
+        btn.innerHTML = originalHtml;
+        applyDashboardFilters();
+        showToast(printedReqNos.length + ' request(s) are now Pending. Choose "Save as PDF" or a printer in the print window.');
+        await printHtmlInFrame(html, ('Approval_' + printedReqNos.join('_')).slice(0, 120));
     } catch (err) {
         console.error(err);
-        printWindow.close();
-        alert('Error: ' + (err.message === 'Failed to fetch' ? 'Cannot connect to server.' : err.message));
+        showToast('Error: ' + (err.message === 'Failed to fetch' ? 'Cannot connect to server.' : err.message), 'error');
     } finally {
         btn.innerHTML = originalHtml;
-        btn.disabled = false;
+        updateSelectionUI();
     }
 }
 
@@ -1332,7 +1466,6 @@ function buildApprovalPrintHtml(requests) {
                     '</div>' +
                 '</div>' +
             '</div>' +
-            '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }<\/script>' +
         '</body></html>';
 }
 
@@ -1352,13 +1485,13 @@ function openReviewModal(reqNo) {
         const itemStatus = toText(item.status);
         let actionHtml = '';
         if (itemStatus.indexOf('Pending') > -1) {
-            actionHtml = '<div>' +
-                '<label class="me-2 text-success"><input type="radio" name="item_' + index + '" value="Approve" class="form-check-input" required /> Approve</label>' +
-                '<label class="text-danger"><input type="radio" name="item_' + index + '" value="Reject" class="form-check-input" required /> Reject</label>' +
+            actionHtml = '<div class="decision">' +
+                '<label class="decision-approve"><input type="radio" name="item_' + index + '" value="Approve" class="form-check-input" required /> Approve</label>' +
+                '<label class="decision-reject"><input type="radio" name="item_' + index + '" value="Reject" class="form-check-input" required /> Reject</label>' +
             '</div>';
         } else {
-            let bClass = itemStatus === 'Completed' ? 'bg-success' : (itemStatus === 'Rejected' ? 'bg-danger' : 'bg-secondary');
-            actionHtml = '<span class="badge ' + bClass + '">' + escapeHtml(itemStatus || '-') + '</span>';
+            let bClass = itemStatus === 'Completed' ? 'status-completed' : (itemStatus === 'Rejected' ? 'status-rejected' : 'status-draft');
+            actionHtml = '<span class="status-pill ' + bClass + '">' + escapeHtml(itemStatus || '-') + '</span>';
         }
 
         let invText = item.invoice ? item.invoice : '-';
@@ -1368,9 +1501,9 @@ function openReviewModal(reqNo) {
             '<td class="text-center fw-bold">' + (index + 1) + '</td>' +
             '<td>' +
                 '<div class="fw-bold">' + escapeHtml(item.description) + '</div>' +
-                '<small class="text-muted">Inv: ' + escapeHtml(invText) + ' &nbsp;|&nbsp; Dept: ' + escapeHtml(deptText) + '</small>' +
+                '<small class="cell-muted">Inv: ' + escapeHtml(invText) + ' &nbsp;|&nbsp; Dept: ' + escapeHtml(deptText) + '</small>' +
             '</td>' +
-            '<td class="text-end fw-bold">' + formatMoney(item.total) + '</td>' +
+            '<td class="cell-num">' + formatMoney(item.total) + '</td>' +
             '<td class="text-center" style="white-space:nowrap;">' + actionHtml + '</td>' +
         '</tr>';
     });

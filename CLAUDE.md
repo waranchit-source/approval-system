@@ -5,6 +5,13 @@
 ## Where things live
 - **Frontend:** this repo (`waranchit-source/approval-system`), `index.html` + `app.js` + `style.css`.
   Published by GitHub Pages from branch `main` → https://waranchit-source.github.io/approval-system/
+  GitHub Pages sends `Cache-Control: max-age=600`: whenever app.js or style.css change, bump the `?v=` query in
+  index.html, otherwise browsers can mix a new index.html with an old cached app.js (new buttons do nothing).
+- **UI:** dark theme, tokens in `:root` of style.css (brand = Instagram gradient, status colours, Plus Jakarta Sans +
+  Noto Sans Thai), Bootstrap 5 only for grid/modal, Font Awesome 6 free icons. Dashboard = status tabs + search +
+  bulk bar (Print PDF / Send email enabled only with a selection) + table that turns into cards under 768px
+  (cells carry `data-label`). Messages use `showToast()`; confirmations still use `confirm()`.
+  Batch "Print PDF for Approval" prints from a hidden iframe (`printHtmlInFrame`), not a pop-up window.
 - **Backend:** Google Apps Script bound to the Google Sheet **"Approval"** (Apps Script project "Approval").
   The live project uses ONE file `Code.gs` (no comments). This repo keeps the same code split into
   `apps-script/1_Config.gs … 6_Emails.gs` (with comments). Keep both in sync: the logic must be identical.
@@ -35,3 +42,5 @@ signature) → `Completed` / `Rejected`. Anything containing "Pending" counts as
 - 2026-10-28: fixed duplicated items after Save (idempotent `submitId`, `SpreadsheetApp.flush()` before releasing
   the lock, block row deletion on edit); added "Print PDF for Approval" (one Approver signature box at the end of
   the document, no approver group name printed) and the "Approved" button for manually signed requests.
+- 2026-10-28 (2): "Print PDF for Approval did nothing" was a stale cached app.js after deploy → added `?v=` cache
+  busting and switched batch printing to a hidden iframe. Full UI/UX redesign (all element IDs kept).
