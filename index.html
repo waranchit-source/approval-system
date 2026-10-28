@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0B0F19">
+    <meta name="theme-color" content="#F5F7FB">
     <title>Approval System</title>
+    <link rel="preconnect" href="https://script.google.com">
+    <link rel="preconnect" href="https://script.googleusercontent.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20261028-3">
+    <link rel="stylesheet" href="style.css?v=20261028-4">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 </head>
 <body>
@@ -102,6 +104,9 @@
             </a>
             <a href="#" class="nav-link sidemenu-btn" data-target="dashboardSection" id="btnLoadDashboard">
                 <i class="fa-solid fa-table-list" aria-hidden="true"></i> <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-link sidemenu-btn admin-only" data-target="activitySection" id="btnLoadActivity" style="display:none;">
+                <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> <span>Activity Log</span>
             </a>
         </nav>
         <div class="sidebar-footer">
@@ -234,6 +239,38 @@
                 </div>
             </div>
         </div>
+
+        <div id="activitySection" class="content-section" style="display:none;">
+            <div class="toolbar">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="searchActivity" class="form-control app-input" placeholder="Search user, action, Ref No. or details..." aria-label="Search activity">
+                </div>
+                <select id="activityActionFilter" class="form-select app-input activity-filter" aria-label="Filter by action">
+                    <option value="">All actions</option>
+                </select>
+                <button class="btn btn-ghost btn-sm-app" id="btnRefreshActivity"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>Refresh</span></button>
+            </div>
+            <div class="panel panel-flush">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Ref No.</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityTableBody">
+                            <tr><td colspan="5" class="table-empty">Loading activity...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="table-footnote" id="activityFootnote"></p>
+        </div>
     </main>
 </div>
 
@@ -244,7 +281,7 @@
     <div class="modal-content app-modal">
       <div class="modal-header">
         <h5 class="modal-title" id="approvalModalTitle"><i class="fa-solid fa-list-check me-2" aria-hidden="true"></i>Review Request <span id="modalReqNo"></span></h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
          <form id="modalApprovalForm">
@@ -369,6 +406,6 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="app.js?v=20261028-3"></script>
+<script src="app.js?v=20261028-4"></script>
 </body>
 </html>
