@@ -9,6 +9,11 @@ let approvalModalInstance = null;
 let lastUserName = null;
 let currentSubmitId = null;
 let dashboardStatusFilter = 'all';
+let dashboardLoaded = false;
+let activityData = [];
+let selectSearchCounter = 0;
+const DROPDOWN_CACHE_KEY = 'approvalDropdowns_v1';
+const nativeSelectValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
 window.dashboardData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -82,9 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (requestorInput) {
         setupCombobox(requestorInput, () => (globalDropdownData && globalDropdownData.requestorNames) ? globalDropdownData.requestorNames : []);
     }
+    enhanceSelect(document.getElementById('approverEmail'));
 
     document.querySelectorAll('.sidemenu-btn').forEach(btn => {
-        if(btn.id !== 'btnLoadDashboard') {
+        if(btn.id !== 'btnLoadDashboard' && btn.id !== 'btnLoadActivity') {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
@@ -112,13 +118,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
         document.getElementById('dashboardSection').style.display = 'block';
         document.querySelector('.page-title').innerText = 'Dashboard';
-        fetchDashboard();
+        if (dashboardLoaded) applyDashboardFilters();
+        fetchDashboard({ silent: dashboardLoaded });
         if(window.innerWidth <= 768) {
             closeMobileSidebar();
         }
     });
 
-    document.getElementById('btnRefreshDashboard')?.addEventListener('click', fetchDashboard);
+    document.getElementById('btnLoadActivity')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        document.getElementById('activitySection').style.display = 'block';
+        document.querySelector('.page-title').innerText = 'Activity Log';
+        fetchActivityLog();
+        if(window.innerWidth <= 768) {
+            closeMobileSidebar();
+        }
+    });
+    document.getElementById('btnRefreshActivity')?.addEventListener('click', fetchActivityLog);
+    document.getElementById('searchActivity')?.addEventListener('input', renderActivityLog);
+    document.getElementById('activityActionFilter')?.addEventListener('change', renderActivityLog);
+
+    document.getElementById('btnRefreshDashboard')?.addEventListener('click', () => fetchDashboard());
 
     document.getElementById('btnToggleSidebar')?.addEventListener('click', () => {
         document.getElementById('sidebarMenu').classList.toggle('collapsed');
@@ -240,6 +263,185 @@ function updateFormTotals() {
     });
     const grandEl = document.getElementById('formGrandTotal');
     if (grandEl) grandEl.innerText = formatMoney(grand);
+}
+
+function highlightMatch(text, keyword) {
+    if (!keyword) return escapeHtml(text);
+    const idx = text.toLowerCase().indexOf(keyword);
+    if (idx < 0) return escapeHtml(text);
+    return escapeHtml(text.slice(0, idx)) +
+        '<mark>' + escapeHtml(text.slice(idx, idx + keyword.length)) + '</mark>' +
+        escapeHtml(text.slice(idx + keyword.length));
+}
+
+function enhanceSelect(select) {
+    if (!select || select.dataset.enhanced) return;
+    select.dataset.enhanced = '1';
+    selectSearchCounter++;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'select-search';
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(select);
+    select.classList.add('select-search-native');
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control app-input select-search-input';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+    if (select.id) {
+        input.id = select.id + 'Search';
+        const label = document.querySelector('label[for="' + select.id + '"]');
+        if (label) label.htmlFor = input.id;
+    }
+    wrapper.appendChild(input);
+
+    const list = document.createElement('ul');
+    list.className = 'combo-list';
+    list.id = 'selectSearchList' + selectSearchCounter;
+    list.setAttribute('role', 'listbox');
+    wrapper.appendChild(list);
+    input.setAttribute('aria-controls', list.id);
+
+    let matches = [];
+    let activeIndex = -1;
+
+    const realOptions = () => Array.from(select.options).filter(o => o.value !== '');
+    const currentValue = () => nativeSelectValue.get.call(select);
+
+    function sync() {
+        const opt = select.options[select.selectedIndex];
+        input.value = (opt && opt.value !== '') ? opt.textContent : '';
+        const placeholder = Array.from(select.options).find(o => o.value === '');
+        input.placeholder = placeholder ? placeholder.textContent : '';
+        if (currentValue()) input.classList.remove('is-invalid');
+    }
+
+    function close() {
+        list.style.display = 'none';
+        activeIndex = -1;
+        input.setAttribute('aria-expanded', 'false');
+    }
+
+    function setActive(index) {
+        const items = list.querySelectorAll('.combo-item');
+        if (items.length === 0) return;
+        activeIndex = (index + items.length) % items.length;
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+        items[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    function open(keyword) {
+        const kw = toText(keyword).trim().toLowerCase();
+        const selected = currentValue();
+        matches = realOptions().filter(o => !kw || o.textContent.toLowerCase().includes(kw));
+        if (matches.length === 0) {
+            list.innerHTML = '<li class="combo-empty">No match for "' + escapeHtml(toText(keyword).trim()) + '"</li>';
+            activeIndex = -1;
+        } else {
+            list.innerHTML = matches.map((o, i) =>
+                '<li class="combo-item' + (o.value === selected ? ' is-selected' : '') + '" role="option" aria-selected="' + (o.value === selected ? 'true' : 'false') + '" data-index="' + i + '">' + highlightMatch(o.textContent, kw) + '</li>'
+            ).join('');
+            activeIndex = -1;
+        }
+        list.style.display = 'block';
+        input.setAttribute('aria-expanded', 'true');
+        const selectedIndex = matches.findIndex(o => o.value === selected);
+        if (!kw && selectedIndex >= 0) setActive(selectedIndex);
+    }
+
+    function choose(index) {
+        const opt = matches[index];
+        if (!opt) return;
+        const changed = opt.value !== currentValue();
+        nativeSelectValue.set.call(select, opt.value);
+        sync();
+        close();
+        if (changed) select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    input.addEventListener('focus', () => {
+        open('');
+        input.select();
+    });
+    input.addEventListener('click', () => { if (list.style.display !== 'block') open(''); });
+    input.addEventListener('input', () => open(input.value));
+    input.addEventListener('blur', () => {
+        const typed = input.value.trim().toLowerCase();
+        if (typed) {
+            const exact = realOptions().find(o => o.textContent.trim().toLowerCase() === typed);
+            if (exact && exact.value !== currentValue()) {
+                nativeSelectValue.set.call(select, exact.value);
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+        close();
+        sync();
+    });
+    input.addEventListener('keydown', (e) => {
+        const isOpen = list.style.display === 'block';
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!isOpen) open('');
+            setActive(activeIndex + 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!isOpen) open('');
+            setActive(activeIndex - 1);
+        } else if (e.key === 'Enter') {
+            if (isOpen) {
+                e.preventDefault();
+                if (activeIndex >= 0) choose(activeIndex);
+                else if (matches.length === 1) choose(0);
+            }
+        } else if (e.key === 'Escape') {
+            if (isOpen) {
+                e.preventDefault();
+                close();
+                sync();
+            }
+        } else if (e.key === 'Tab') {
+            close();
+        }
+    });
+    list.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const item = e.target.closest('.combo-item');
+        if (item) choose(parseInt(item.getAttribute('data-index'), 10));
+    });
+
+    Object.defineProperty(select, 'value', {
+        configurable: true,
+        get() { return nativeSelectValue.get.call(this); },
+        set(v) { nativeSelectValue.set.call(this, v); sync(); }
+    });
+    new MutationObserver(sync).observe(select, { childList: true });
+    select.addEventListener('change', sync);
+    select.addEventListener('invalid', () => input.classList.add('is-invalid'));
+    if (select.form) select.form.addEventListener('reset', () => setTimeout(sync, 0));
+    sync();
+}
+
+function mergeRequests(list) {
+    if (!Array.isArray(list)) return;
+    dashboardLocalUpdateSeq++;
+    list.forEach(req => {
+        const idx = window.dashboardData.findIndex(r => toText(r.reqNo) === toText(req.reqNo));
+        if (idx >= 0) window.dashboardData[idx] = req;
+        else window.dashboardData.unshift(req);
+    });
+    applyDashboardFilters();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.req-cb').forEach(cb => { cb.checked = false; });
+    updateSelectionUI();
 }
 
 function safeStorageGet(storage, key) {
@@ -446,6 +648,11 @@ function showAppScreen() {
     document.querySelectorAll('.item-block .item-branch').forEach(sel => {
         if (!sel.value && currentUser.branch) sel.value = currentUser.branch;
     });
+
+    const isAdmin = currentUser.role === 'Admin';
+    document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdmin ? '' : 'none'; });
+
+    fetchDashboard({ silent: true });
 }
 
 function handleLogout(keepForm) {
@@ -454,54 +661,80 @@ function handleLogout(keepForm) {
     lastUserName = (keepForm === true && currentUser) ? currentUser.name : null;
     currentUser = null;
     window.dashboardData = [];
+    dashboardLoaded = false;
+    activityData = [];
     const tbody = document.getElementById('dashboardTableBody');
     if (tbody) tbody.innerHTML = '';
+    const activityBody = document.getElementById('activityTableBody');
+    if (activityBody) activityBody.innerHTML = '';
+    document.querySelectorAll('.admin-only').forEach(el => { el.style.display = 'none'; });
     const statusMsg = document.getElementById('statusMessage');
     if (statusMsg) statusMsg.innerText = '';
-    if (!lastUserName) resetCreateForm();
+    if (!lastUserName) {
+        document.querySelectorAll('.content-section').forEach(sec => sec.style.display = 'none');
+        document.getElementById('formSection').style.display = 'block';
+        document.querySelectorAll('.sidemenu-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-target') === 'formSection'));
+        resetCreateForm();
+    }
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('loginContainer').style.display = 'block';
 }
 
 async function fetchDropdownData() {
     const approverSelect = document.getElementById('approverEmail');
+    let usedCache = false;
+    try {
+        const cached = JSON.parse(safeStorageGet(localStorage, DROPDOWN_CACHE_KEY) || 'null');
+        if (cached && typeof cached === 'object' && Array.isArray(cached.emails)) {
+            applyDropdownData(cached);
+            usedCache = true;
+            if (itemCount === 0) addNewItem();
+        }
+    } catch (e) {
+        safeStorageRemove(localStorage, DROPDOWN_CACHE_KEY);
+    }
     try {
         const response = await fetch(SCRIPT_URL + '?action=getDropdowns');
         const data = await parseScriptResponse(response);
-        if (!data || typeof data !== 'object') throw new Error('Invalid dropdown data.');
-
-        globalDropdownData = {
-            emails: uniqueStrings(data.emails),
-            branches: uniqueStrings(data.branches),
-            departments: uniqueStrings(data.departments),
-            paymentMethods: uniqueStrings(data.paymentMethods),
-            companies: uniqueStrings(data.companies),
-            banks: uniqueStrings(data.banks),
-            vendors: Array.isArray(data.vendors) ? data.vendors.filter(v => v && toText(v.name).trim()) : [],
-            requestorNames: uniqueStrings(data.requestorNames)
-        };
-
-        populateSelect(approverSelect, globalDropdownData.emails, 'Select Approver...');
-        populateSelect(document.getElementById('regBranch'), globalDropdownData.branches, 'Select Branch...');
-
-        const bankDatalist = document.getElementById('bankOptions');
-        if (bankDatalist) {
-            bankDatalist.innerHTML = '';
-            globalDropdownData.banks.forEach(bank => {
-                const opt = document.createElement('option');
-                opt.value = bank;
-                bankDatalist.appendChild(opt);
-            });
-        }
-
-        // Fill selects of items that were created before the data arrived
-        document.querySelectorAll('.item-block').forEach(populateItemSelects);
+        if (!data || typeof data !== 'object' || data.error) throw new Error('Invalid dropdown data.');
+        applyDropdownData(data);
+        safeStorageSet(localStorage, DROPDOWN_CACHE_KEY, JSON.stringify(data));
     } catch (error) {
         console.error(error);
-        if (approverSelect) approverSelect.innerHTML = '<option value="">Failed to load – please refresh the page</option>';
+        if (approverSelect && !usedCache) approverSelect.innerHTML = '<option value="">Failed to load – please refresh the page</option>';
     } finally {
         if (itemCount === 0) addNewItem();
     }
+}
+
+function applyDropdownData(data) {
+    const approverSelect = document.getElementById('approverEmail');
+    globalDropdownData = {
+        emails: uniqueStrings(data.emails),
+        branches: uniqueStrings(data.branches),
+        departments: uniqueStrings(data.departments),
+        paymentMethods: uniqueStrings(data.paymentMethods),
+        companies: uniqueStrings(data.companies),
+        banks: uniqueStrings(data.banks),
+        vendors: Array.isArray(data.vendors) ? data.vendors.filter(v => v && toText(v.name).trim()) : [],
+        requestorNames: uniqueStrings(data.requestorNames)
+    };
+
+    populateSelect(approverSelect, globalDropdownData.emails, 'Select Approver...');
+    populateSelect(document.getElementById('regBranch'), globalDropdownData.branches, 'Select Branch...');
+
+    const bankDatalist = document.getElementById('bankOptions');
+    if (bankDatalist) {
+        bankDatalist.innerHTML = '';
+        globalDropdownData.banks.forEach(bank => {
+            const opt = document.createElement('option');
+            opt.value = bank;
+            bankDatalist.appendChild(opt);
+        });
+    }
+
+    // Fill selects of items that were created before the data arrived
+    document.querySelectorAll('.item-block').forEach(populateItemSelects);
 }
 
 async function handleLogin(e) {
@@ -613,6 +846,7 @@ function addNewItem() {
     block.querySelector('.item-number').innerText = itemCount;
 
     populateItemSelects(block);
+    ['.item-company', '.item-supplier', '.item-branch', '.item-dept', '.item-paymethod'].forEach(sel => enhanceSelect(block.querySelector(sel)));
 
     if (itemCount > 1) {
         const removeBtn = block.querySelector('.btn-remove-item');
@@ -944,7 +1178,9 @@ async function handleBatchSend() {
 
         if(result.status === 'success') {
             showToast('Approval email sent for ' + checkedVals.length + ' request(s).');
-            fetchDashboard();
+            clearSelection();
+            if (Array.isArray(result.requests)) mergeRequests(result.requests);
+            else fetchDashboard({ silent: true });
         } else {
             showToast('Error: ' + (result.message ? result.message : 'Unknown error.'), 'error');
         }
@@ -1020,24 +1256,45 @@ window.editRequest = function(reqNo) {
     document.getElementById('formSection').style.display = 'block';
 };
 
-async function fetchDashboard() {
+let dashboardFetchSeq = 0;
+let dashboardLocalUpdateSeq = 0;
+
+async function fetchDashboard(options) {
+    const opts = options || {};
     const tbody = document.getElementById('dashboardTableBody');
     if (!currentUser) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading data...</td></tr>';
-    updateSelectionUI();
+    const refreshBtn = document.getElementById('btnRefreshDashboard');
+    if (!(opts.silent && dashboardLoaded)) {
+        tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading data...</td></tr>';
+        updateSelectionUI();
+    }
+    if (refreshBtn) refreshBtn.classList.add('is-loading');
 
+    const seq = ++dashboardFetchSeq;
+    const localSeqAtStart = dashboardLocalUpdateSeq;
     try {
         const result = await postToScript({ action: 'getRequests' });
+        if (seq !== dashboardFetchSeq || localSeqAtStart !== dashboardLocalUpdateSeq || !currentUser) return;
 
         if (result.status === 'success') {
             window.dashboardData = Array.isArray(result.data) ? result.data : [];
+            dashboardLoaded = true;
             applyDashboardFilters();
-        } else {
+        } else if (!dashboardLoaded) {
             tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>' + escapeHtml(result.message ? result.message : 'Failed to load data.') + '</td></tr>';
+        } else {
+            showToast(result.message ? result.message : 'Failed to refresh data.', 'error');
         }
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>Failed to load data. Please press Refresh.</td></tr>';
+        if (seq !== dashboardFetchSeq) return;
+        if (!dashboardLoaded) {
+            tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>Failed to load data. Please press Refresh.</td></tr>';
+        } else if (!opts.silent) {
+            showToast('Failed to refresh data. Please try again.', 'error');
+        }
+    } finally {
+        if (refreshBtn && seq === dashboardFetchSeq) refreshBtn.classList.remove('is-loading');
     }
 }
 
@@ -1118,6 +1375,7 @@ function updateSelectionUI() {
 
 function renderDashboard(dataToRender) {
     const tbody = document.getElementById('dashboardTableBody');
+    const keepSelected = new Set(getSelectedReqNos());
     tbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="table-empty"><i class="fa-regular fa-folder-open" aria-hidden="true"></i>No requests found.</td></tr>';
@@ -1133,7 +1391,7 @@ function renderDashboard(dataToRender) {
 
         let cbHtml = '<i class="fa-solid fa-check done-mark" aria-label="Completed"></i>';
         if (status !== 'Completed') {
-            cbHtml = '<input type="checkbox" class="form-check-input req-cb" value="' + reqAttr + '" aria-label="Select ' + reqAttr + '" />';
+            cbHtml = '<input type="checkbox" class="form-check-input req-cb" value="' + reqAttr + '" aria-label="Select ' + reqAttr + '"' + (keepSelected.has(reqNo) ? ' checked' : '') + ' />';
         }
 
         let actions = '<button type="button" class="icon-btn" data-action="print" data-reqno="' + reqAttr + '" title="Print this request" aria-label="Print ' + reqAttr + '"><i class="fa-solid fa-print" aria-hidden="true"></i></button>';
@@ -1180,6 +1438,83 @@ function handleDashboardAction(e) {
     if (action === 'manual-approve') handleManualApprove(reqNo, btn);
 }
 
+async function fetchActivityLog() {
+    const tbody = document.getElementById('activityTableBody');
+    const refreshBtn = document.getElementById('btnRefreshActivity');
+    if (!currentUser || currentUser.role !== 'Admin') return;
+    if (activityData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading activity...</td></tr>';
+    }
+    if (refreshBtn) refreshBtn.classList.add('is-loading');
+    try {
+        const result = await postToScript({ action: 'getActivityLog' });
+        if (result.status === 'success') {
+            activityData = Array.isArray(result.data) ? result.data : [];
+            const filter = document.getElementById('activityActionFilter');
+            if (filter) {
+                const current = filter.value;
+                const actions = uniqueStrings(activityData.map(a => a.action)).sort();
+                filter.innerHTML = '<option value="">All actions</option>' + actions.map(a => '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>').join('');
+                if (actions.indexOf(current) > -1) filter.value = current;
+            }
+            renderActivityLog();
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>' + escapeHtml(result.message || 'Failed to load the activity log.') + '</td></tr>';
+        }
+    } catch (error) {
+        console.error(error);
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>Failed to load the activity log. Please press Refresh.</td></tr>';
+    } finally {
+        if (refreshBtn) refreshBtn.classList.remove('is-loading');
+    }
+}
+
+function activityTone(action) {
+    const a = toText(action).toLowerCase();
+    if (a.indexOf('login') > -1 || a.indexOf('register') > -1) return { cls: 'tone-muted', icon: 'fa-right-to-bracket' };
+    if (a.indexOf('create') > -1 || a.indexOf('save') > -1) return { cls: 'tone-blue', icon: 'fa-file-circle-plus' };
+    if (a.indexOf('edit') > -1) return { cls: 'tone-blue', icon: 'fa-pen' };
+    if (a.indexOf('print') > -1) return { cls: 'tone-amber', icon: 'fa-file-pdf' };
+    if (a.indexOf('send') > -1) return { cls: 'tone-indigo', icon: 'fa-paper-plane' };
+    if (a.indexOf('approved') > -1 || a.indexOf('review') > -1 || a.indexOf('approve') > -1) return { cls: 'tone-green', icon: 'fa-circle-check' };
+    return { cls: 'tone-muted', icon: 'fa-circle-info' };
+}
+
+function renderActivityLog() {
+    const tbody = document.getElementById('activityTableBody');
+    if (!tbody) return;
+    const keyword = toText(document.getElementById('searchActivity')?.value).trim().toLowerCase();
+    const actionFilter = toText(document.getElementById('activityActionFilter')?.value);
+    const rows = activityData.filter(a => {
+        if (actionFilter && a.action !== actionFilter) return false;
+        if (!keyword) return true;
+        return [a.time, a.user, a.email, a.role, a.action, a.refs, a.details].some(v => toText(v).toLowerCase().includes(keyword));
+    });
+
+    const note = document.getElementById('activityFootnote');
+    if (note) note.innerText = 'Showing ' + rows.length + ' of ' + activityData.length + ' latest activities.';
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty"><i class="fa-regular fa-folder-open" aria-hidden="true"></i>No activity found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.map(a => {
+        const tone = activityTone(a.action);
+        const parts = toText(a.time).split(' ');
+        const timeHtml = parts.length === 2
+            ? '<span class="log-date">' + escapeHtml(formatDisplayDate(parts[0])) + '</span><span class="log-time">' + escapeHtml(parts[1]) + '</span>'
+            : escapeHtml(a.time);
+        return '<tr>' +
+            '<td class="cell-muted" data-label="Time">' + timeHtml + '</td>' +
+            '<td data-label="User"><span class="log-user">' + escapeHtml(a.user || '-') + '</span><span class="log-sub">' + escapeHtml(a.role || '') + '</span></td>' +
+            '<td data-label="Action"><span class="log-action ' + tone.cls + '"><i class="fa-solid ' + tone.icon + '" aria-hidden="true"></i>' + escapeHtml(a.action) + '</span></td>' +
+            '<td data-label="Ref No.">' + (a.refs ? '<span class="ref-no log-refs">' + escapeHtml(a.refs) + '</span>' : '<span class="cell-muted">-</span>') + '</td>' +
+            '<td class="cell-muted log-details" data-label="Details">' + escapeHtml(a.details || '-') + '</td>' +
+        '</tr>';
+    }).join('');
+}
+
 function isManualPendingRequest(req) {
     return (req.items || []).some(item => toText(item.status).indexOf(MANUAL_PENDING_STATUS) === 0);
 }
@@ -1194,10 +1529,12 @@ async function handleManualApprove(reqNo, btn) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving...';
 
     try {
-        const result = await postToScript({ action: 'manualApprove', reqNo: reqNo });
+        const result = await postToScript({ action: 'manualApprove', reqNo: reqNo, deferNotify: true });
         if (result.status === 'success') {
             showToast(reqNo + ' has been marked as Approved (Completed).');
-            fetchDashboard();
+            if (Array.isArray(result.requests)) mergeRequests(result.requests);
+            else fetchDashboard({ silent: true });
+            postToScript({ action: 'notifyDecision', reqNo: reqNo }).catch(err => console.warn('Notification email failed', err));
         } else {
             showToast('Error: ' + (result.message ? result.message : 'Unknown error.'), 'error');
         }
@@ -1255,9 +1592,17 @@ async function handleBatchPrint() {
 
         const printedReqNos = (Array.isArray(result.reqNos) && result.reqNos.length ? result.reqNos.map(toText) : checkedVals.slice())
             .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-        const refreshed = await postToScript({ action: 'getRequests' });
-        if (refreshed.status === 'success' && Array.isArray(refreshed.data)) {
-            window.dashboardData = refreshed.data;
+        if (Array.isArray(result.requests)) {
+            dashboardLocalUpdateSeq++;
+            result.requests.forEach(req => {
+                const idx = window.dashboardData.findIndex(r => toText(r.reqNo) === toText(req.reqNo));
+                if (idx >= 0) window.dashboardData[idx] = req;
+            });
+        } else {
+            const refreshed = await postToScript({ action: 'getRequests' });
+            if (refreshed.status === 'success' && Array.isArray(refreshed.data)) {
+                window.dashboardData = refreshed.data;
+            }
         }
 
         const requests = printedReqNos.map(findRequest).filter(Boolean);
@@ -1265,6 +1610,7 @@ async function handleBatchPrint() {
         if (!html) throw new Error('All items in the selected requests were rejected. Nothing to print.');
 
         btn.innerHTML = originalHtml;
+        clearSelection();
         applyDashboardFilters();
         showToast(printedReqNos.length + ' request(s) are now Pending. Choose "Save as PDF" or a printer in the print window.');
         await printHtmlInFrame(html, ('Approval_' + printedReqNos.join('_')).slice(0, 120));
@@ -1278,194 +1624,129 @@ async function handleBatchPrint() {
 }
 
 function buildApprovalPrintHtml(requests) {
-    let sectionsHtml = '';
+    const rows = [];
     const printedReqNos = [];
-    let grandAmt = 0;
-    let grandVat = 0;
-    let grandWht = 0;
     let grandTotal = 0;
-    let itemTotalCount = 0;
 
     requests.forEach(req => {
         const validItems = (req.items || []).filter(item => item.status !== 'Rejected');
         if (validItems.length === 0) return;
-
         const reqNo = toText(req.reqNo);
         printedReqNos.push(reqNo);
-
-        let itemsRows = '';
-        let sumAmt = 0;
-        let sumVat = 0;
-        let sumWht = 0;
-        let sumTotal = 0;
-
-        validItems.forEach((item, index) => {
-            sumAmt += toNumber(item.amount);
-            sumVat += toNumber(item.vat);
-            sumWht += toNumber(item.wht);
-            sumTotal += toNumber(item.total);
-            itemTotalCount++;
-
-            const formattedPayDate = formatDisplayDate(item.paymentDate);
-            const detailRow = (label, value, extraStyle) =>
-                '<tr><td style="color:#adb5bd; padding-right:5px;' + (extraStyle || '') + '">' + label + '</td><td style="color:#495057;">' + escapeHtml(value) + '</td></tr>';
-
-            let detailsHtml = '';
-            if (formattedPayDate) detailsHtml += detailRow('PAY DATE:', formattedPayDate, ' width:60px;');
-            if (item.companyName) detailsHtml += detailRow('COMPANY:', item.companyName);
-            if (item.supplierName) detailsHtml += detailRow('SUPPLIER:', item.supplierName);
-            if (item.invoice) detailsHtml += detailRow('INV:', item.invoice);
-            if (item.department) detailsHtml += detailRow('DEPT:', item.department);
-            if (item.branch) detailsHtml += detailRow('BRANCH:', item.branch);
-            if (item.paymentMethod) detailsHtml += detailRow('PAYMENT:', item.paymentMethod);
-            if (item.bank) detailsHtml += detailRow('BANK:', item.bank);
-            if (item.accName) detailsHtml += detailRow('A/C NAME:', item.accName);
-            if (item.accNo) detailsHtml += detailRow('A/C NO:', item.accNo);
-            if (item.remarks) detailsHtml += detailRow('REMARKS:', item.remarks);
-
-            const itemStatus = toText(item.status).indexOf('Pending') > -1 ? 'Pending' : toText(item.status);
-            const statusColor = itemStatus === 'Completed' ? '#28a745' : '#f09433';
-
-            itemsRows +=
-                '<tr>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top; color: #495057; text-align: center;">' + (index + 1) + '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; vertical-align: top;">' +
-                        '<div style="font-weight: 700; font-size: 13px; color: #212529; margin-bottom: 4px;">' + escapeHtml(item.description) + '</div>' +
-                        '<table style="width:100%; border:none; margin:0; font-size:10px; line-height:1.2;">' + detailsHtml + '</table>' +
-                    '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.amount) + '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.vat) + '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; color: #495057;">' + formatMoney(item.wht) + '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: right; vertical-align: top; font-weight: 700; color: #212529;">' + formatMoney(item.total) + '</td>' +
-                    '<td style="padding: 10px 6px; border-bottom: 1px solid #f1f3f5; text-align: center; vertical-align: top; font-weight: 700; color: ' + statusColor + '">' + escapeHtml(itemStatus) + '</td>' +
-                '</tr>';
+        validItems.forEach(item => {
+            grandTotal += toNumber(item.total);
+            rows.push({ reqNo: reqNo, item: item });
         });
-
-        grandAmt += sumAmt;
-        grandVat += sumVat;
-        grandWht += sumWht;
-        grandTotal += sumTotal;
-
-        const docTypeStr = req.docType && req.docType !== '-' ? req.docType : 'Payment Voucher';
-        const requestorNameStr = req.requestorName ? req.requestorName : '-';
-
-        sectionsHtml +=
-            '<div class="ref-section">' +
-                '<table class="main-table">' +
-                    '<thead>' +
-                        '<tr><td colspan="7" class="ref-head-cell">' +
-                            '<div class="ref-head">' +
-                                '<div><span class="ref-no">' + escapeHtml(reqNo) + '</span> <span class="ref-type">(' + escapeHtml(docTypeStr) + ')</span></div>' +
-                                '<div class="ref-meta">' +
-                                    'Requestor Name: <strong>' + escapeHtml(requestorNameStr) + '</strong> &nbsp;|&nbsp; ' +
-                                    'Senders: <strong>' + escapeHtml(req.requestor) + '</strong> &nbsp;|&nbsp; ' +
-                                    'Date: <strong>' + escapeHtml(formatDisplayDate(req.date)) + '</strong>' +
-                                '</div>' +
-                            '</div>' +
-                        '</td></tr>' +
-                        '<tr>' +
-                            '<th style="text-align: center; width: 5%;">#</th>' +
-                            '<th style="text-align: left; width: 40%;">Description & Details</th>' +
-                            '<th style="text-align: right; width: 11%;">Amount</th>' +
-                            '<th style="text-align: right; width: 11%;">VAT(7%)</th>' +
-                            '<th style="text-align: right; width: 11%;">WHT</th>' +
-                            '<th style="text-align: right; width: 12%;">Total</th>' +
-                            '<th style="text-align: center; width: 10%;">Item Status</th>' +
-                        '</tr>' +
-                    '</thead>' +
-                    itemsRows +
-                    '<tr class="subtotal-row">' +
-                        '<td colspan="2" style="padding: 8px 6px; text-align: right; color: #6c757d;">Subtotal ' + escapeHtml(reqNo) + '</td>' +
-                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumAmt) + '</td>' +
-                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumVat) + '</td>' +
-                        '<td style="padding: 8px 6px; text-align: right; color: #495057;">' + formatMoney(sumWht) + '</td>' +
-                        '<td style="padding: 8px 6px; text-align: right; font-weight: 700; color: #212529;">' + formatMoney(sumTotal) + '</td>' +
-                        '<td></td>' +
-                    '</tr>' +
-                '</table>' +
-            '</div>';
     });
 
-    if (!sectionsHtml) return '';
+    if (rows.length === 0) return '';
+
+    let lastReqNo = '';
+    const bodyRows = rows.map((row, index) => {
+        const isFirstOfRef = row.reqNo !== lastReqNo;
+        lastReqNo = row.reqNo;
+        const item = row.item;
+        return '<tr' + (isFirstOfRef && index > 0 ? ' class="ref-start"' : '') + '>' +
+            '<td class="c-center">' + (index + 1) + '</td>' +
+            '<td class="c-ref">' + (isFirstOfRef ? escapeHtml(row.reqNo) : '') + '</td>' +
+            '<td class="c-desc">' + escapeHtml(item.description) + '</td>' +
+            '<td>' + escapeHtml(item.supplierName || '-') + '</td>' +
+            '<td>' + escapeHtml(item.invoice || '-') + '</td>' +
+            '<td class="c-center">' + escapeHtml(item.branch || '-') + '</td>' +
+            '<td>' + escapeHtml(item.bank || '-') + '</td>' +
+            '<td class="c-nowrap">' + escapeHtml(item.accNo || '-') + '</td>' +
+            '<td class="c-num">' + formatMoney(item.total) + '</td>' +
+        '</tr>';
+    }).join('');
 
     const docTitle = ('Approval_' + printedReqNos.join('_')).slice(0, 120);
 
     return '<!DOCTYPE html>' +
         '<html><head><meta charset="UTF-8"><title>' + escapeHtml(docTitle) + '</title>' +
         '<style>' +
-            '@media print { ' +
-                '@page { margin: 15mm; size: A4 portrait; }' +
-                'body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }' +
-                '.doc { min-height: 255mm; }' +
-            '}' +
-            'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #212529; max-width: 210mm; margin: 0 auto; }' +
-            '.doc { display: flex; flex-direction: column; }' +
-            '.doc-content { flex: 1 0 auto; }' +
-            '.header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 15px; }' +
-            '.details-box { background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 15px; }' +
-            '.details-box p { margin: 0; font-size: 11px; }' +
-            '.lbl { color: #6c757d; display: inline-block; width: 95px; }' +
-            '.status-badge { font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 10px; background-color: #fff3cd; color: #664d03; }' +
-            '.ref-section { margin-bottom: 22px; }' +
-            '.ref-head-cell { padding: 0 0 4px 0; }' +
-            '.ref-head { background: #f1f3f5; border-radius: 6px; padding: 8px 12px; }' +
-            '.ref-no { font-weight: 700; font-size: 14px; color: #212529; }' +
-            '.ref-type { font-size: 12px; color: #6c757d; }' +
-            '.ref-meta { font-size: 10px; color: #6c757d; margin-top: 3px; }' +
-            '.main-table { width: 100%; border-collapse: collapse; font-size: 11px; }' +
-            '.main-table th { color: #adb5bd; border-bottom: 2px solid #dee2e6; padding: 8px 6px; text-transform: uppercase; font-size: 9px; font-weight: 600; }' +
-            '.main-table td table td { padding: 2px 0; border: none; }' +
-            '.main-table tr { page-break-inside: avoid; break-inside: avoid; }' +
-            '.subtotal-row td { font-size: 11px; border-top: 1px solid #dee2e6; }' +
-            '.doc-closing { page-break-inside: avoid; break-inside: avoid; }' +
-            '.summary-wrapper { display: flex; justify-content: flex-end; margin-top: 10px; }' +
-            '.summary-box { width: 260px; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }' +
-            '.summary-row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 10px; color: #495057; }' +
-            '.summary-total { display: flex; justify-content: space-between; padding: 10px 12px; font-weight: 700; font-size: 13px; background-color: #f8f9fa; color: #212529; }' +
-            '.total-amount-color { color: #dc3545; }' +
-            '.sign-area { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 12px; border-top: 1px dashed #dee2e6; }' +
-            '.sign-box { width: 320px; border: 1px solid #adb5bd; border-radius: 6px; padding: 10px 16px; text-align: center; font-size: 11px; color: #495057; }' +
-            '.sign-title { font-weight: 700; font-size: 12px; color: #212529; margin-bottom: 4px; text-transform: uppercase; }' +
-            '.sign-line { border-bottom: 1px solid #212529; height: 50px; margin: 0 10px; }' +
-            '.sign-caption { font-size: 9px; color: #adb5bd; margin-top: 3px; text-transform: uppercase; }' +
+            '@page { size: A4 landscape; margin: 10mm; }' +
+            'html, body { margin: 0; padding: 0; background: #fff; }' +
+            'body { font-family: "Segoe UI", Tahoma, "Leelawadee UI", Arial, sans-serif; color: #0F172A; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+            '#sheet { width: 277mm; }' +
+            '.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 2px solid #1D4ED8; }' +
+            '.head h1 { margin: 0; font-size: 18px; letter-spacing: 0.02em; color: #1E3A8A; }' +
+            '.head .refs { margin: 3px 0 0; font-size: 11px; color: #475569; }' +
+            '.meta { display: flex; gap: 18px; font-size: 11px; color: #475569; white-space: nowrap; }' +
+            '.meta b { color: #0F172A; margin-left: 4px; }' +
+            'table { width: 100%; border-collapse: collapse; font-size: 11px; }' +
+            'th { background: #EFF6FF; color: #1E3A8A; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; text-align: left; padding: 6px; border: 1px solid #BFDBFE; }' +
+            'td { padding: 5px 6px; border: 1px solid #E2E8F0; vertical-align: top; line-height: 1.35; }' +
+            'tr.ref-start td { border-top: 1.5px solid #94A3B8; }' +
+            '.c-center { text-align: center; }' +
+            '.c-ref { font-weight: 700; color: #1D4ED8; white-space: nowrap; }' +
+            '.c-desc { font-weight: 600; }' +
+            '.c-nowrap { white-space: nowrap; }' +
+            '.c-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }' +
+            'tfoot td { background: #F8FAFC; font-weight: 800; font-size: 12px; border-top: 2px solid #1D4ED8; }' +
+            'tfoot .c-num { color: #1D4ED8; font-size: 13px; }' +
+            '.foot { display: flex; justify-content: flex-end; margin-top: 14px; }' +
+            '.sign-box { width: 260px; border: 1px solid #94A3B8; border-radius: 6px; padding: 8px 14px 10px; text-align: center; font-size: 11px; color: #334155; }' +
+            '.sign-title { font-weight: 800; font-size: 12px; color: #0F172A; text-transform: uppercase; letter-spacing: 0.04em; }' +
+            '.sign-line { border-bottom: 1px solid #0F172A; height: 40px; margin: 0 8px; }' +
+            '.sign-caption { font-size: 9px; color: #94A3B8; text-transform: uppercase; margin-top: 2px; }' +
             '.sign-name { margin-top: 8px; }' +
-            '.sign-meta { margin-top: 6px; }' +
+            '.sign-date { margin-top: 6px; }' +
         '</style></head><body>' +
-            '<div class="doc">' +
-                '<div class="doc-content">' +
-                    '<div class="header">' +
-                        '<div>' +
-                            '<h1 style="margin: 0 0 5px 0; font-size: 20px; color: #212529;">APPROVAL REQUEST</h1>' +
-                            '<h2 style="margin: 0; color: #6c757d; font-size: 14px; font-weight: 500;">' + escapeHtml(printedReqNos.join(', ')) + '</h2>' +
-                        '</div>' +
+            '<div id="sheet">' +
+                '<div class="head">' +
+                    '<div>' +
+                        '<h1>APPROVAL REQUEST</h1>' +
+                        '<p class="refs">' + escapeHtml(printedReqNos.join(', ')) + '</p>' +
                     '</div>' +
-                    '<div class="details-box">' +
-                        '<p><span class="lbl">Requests:</span> <strong>' + printedReqNos.length + '</strong> (' + itemTotalCount + ' items)</p>' +
-                        '<p><span class="lbl">Overall Status:</span> <span class="status-badge">Pending</span></p>' +
-                        '<p><span class="lbl">Printed:</span> <strong>' + escapeHtml(formatDisplayDate(new Date())) + '</strong></p>' +
+                    '<div class="meta">' +
+                        '<span>Printed<b>' + escapeHtml(formatDisplayDate(new Date())) + '</b></span>' +
+                        '<span>Requests<b>' + printedReqNos.length + '</b></span>' +
+                        '<span>Items<b>' + rows.length + '</b></span>' +
                     '</div>' +
-                    sectionsHtml +
                 '</div>' +
-                '<div class="doc-closing">' +
-                    '<div class="summary-wrapper">' +
-                        '<div class="summary-box">' +
-                            '<div class="summary-row"><span>Amount (Excl. VAT)</span><span style="font-weight: 600;">' + formatMoney(grandAmt) + '</span></div>' +
-                            '<div class="summary-row"><span>VAT (7%)</span><span style="font-weight: 600;">' + formatMoney(grandVat) + '</span></div>' +
-                            '<div class="summary-row"><span>Withholding Tax</span><span style="font-weight: 600;">' + formatMoney(grandWht) + '</span></div>' +
-                            '<div class="summary-total"><span>GRAND TOTAL</span><span class="total-amount-color">' + formatMoney(grandTotal) + ' THB</span></div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="sign-area">' +
-                        '<div class="sign-box">' +
-                            '<div class="sign-title">Approver</div>' +
-                            '<div class="sign-line"></div>' +
-                            '<div class="sign-caption">Signature</div>' +
-                            '<div class="sign-name">( ................................................................ )</div>' +
-                            '<div class="sign-meta">Date: ........ / ........ / ............</div>' +
-                        '</div>' +
+                '<table>' +
+                    '<thead><tr>' +
+                        '<th class="c-center" style="width:4%;">#</th>' +
+                        '<th style="width:9%;">Ref No.</th>' +
+                        '<th style="width:25%;">Description</th>' +
+                        '<th style="width:16%;">Supplier</th>' +
+                        '<th style="width:10%;">INV</th>' +
+                        '<th class="c-center" style="width:8%;">Branch</th>' +
+                        '<th style="width:9%;">Bank</th>' +
+                        '<th style="width:9%;">Account No.</th>' +
+                        '<th style="width:10%; text-align:right;">Amount (THB)</th>' +
+                    '</tr></thead>' +
+                    '<tbody>' + bodyRows + '</tbody>' +
+                    '<tfoot><tr>' +
+                        '<td colspan="8" style="text-align:right;">GRAND TOTAL</td>' +
+                        '<td class="c-num">' + formatMoney(grandTotal) + '</td>' +
+                    '</tr></tfoot>' +
+                '</table>' +
+                '<div class="foot">' +
+                    '<div class="sign-box">' +
+                        '<div class="sign-title">Approver</div>' +
+                        '<div class="sign-line"></div>' +
+                        '<div class="sign-caption">Signature</div>' +
+                        '<div class="sign-name">( ........................................................ )</div>' +
+                        '<div class="sign-date">Date: ........ / ........ / ............</div>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
+            '<script>' +
+                '(function () {' +
+                    'var sheet = document.getElementById("sheet");' +
+                    'var mm = 96 / 25.4;' +
+                    'var maxHeight = 186 * mm;' +
+                    'var fullWidth = 277 * mm;' +
+                    'for (var i = 0; i < 4; i++) {' +
+                        'var height = sheet.getBoundingClientRect().height / (parseFloat(sheet.style.zoom) || 1);' +
+                        'if (height <= maxHeight) break;' +
+                        'var zoom = Math.max(0.35, maxHeight / height);' +
+                        'sheet.style.zoom = zoom.toFixed(3);' +
+                        'sheet.style.width = (fullWidth / zoom).toFixed(1) + "px";' +
+                    '}' +
+                '})();' +
+            '<\/script>' +
         '</body></html>';
 }
 
@@ -1550,7 +1831,8 @@ async function handleModalSubmit(e) {
 
         if (result.status === 'success') {
             approvalModalInstance.hide();
-            fetchDashboard();
+            if (Array.isArray(result.requests)) mergeRequests(result.requests);
+            else fetchDashboard({ silent: true });
             // Send the result email in the background so the Admin does not wait for it
             if (result.updated) postToScript({ action: 'notifyDecision', reqNo: reqNo }).catch(err => console.warn('Notification email failed', err));
         } else {
