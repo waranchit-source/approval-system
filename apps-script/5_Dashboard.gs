@@ -121,6 +121,40 @@ function handleBatchSend_(user, reqNosInput) {
   });
 }
 
+function handlePrintBatch_(user, reqNosInput) {
+  var reqNos = normalizeReqNos_(reqNosInput);
+  if (reqNos.length === 0) return errorOut_('Please select at least one request.');
+
+  return withLock_(function () {
+    var sheet = getApprovalSheet_();
+    var data = sheet.getDataRange().getValues();
+    var changes = [];
+    var printable = [];
+    var denied = false;
+    var found = false;
+
+    for (var k = 1; k < data.length; k++) {
+      var row = data[k];
+      var rNo = str_(row[COL.REQ_NO]);
+      if (!rNo || reqNos.indexOf(rNo) === -1) continue;
+      found = true;
+      if (!canAccess_(user, row[COL.SENDER])) { denied = true; continue; }
+      if (isFinal_(row[COL.STATUS])) continue;
+      var approver = str_(row[COL.APPROVER]) || DEFAULT_APPROVER;
+      changes.push({ rowIndex: k, status: MANUAL_PENDING + ' with ' + approver });
+      if (printable.indexOf(rNo) === -1) printable.push(rNo);
+    }
+
+    if (!found) return errorOut_('Requests not found.');
+    if (changes.length === 0) {
+      return errorOut_(denied ? 'You do not have permission to print these requests.' : 'Nothing to print. All items in the selected requests have already been approved or rejected.');
+    }
+
+    setStatuses_(sheet, changes);
+    return jsonOut_({ status: 'success', reqNos: printable, updated: changes.length });
+  });
+}
+
 function handleSystemPartialApprove_(user, payload) {
   if (user.role !== 'Admin') return errorOut_('Only Admin can review requests in the system.');
   var reqNo = str_(payload.reqNo);
@@ -151,6 +185,38 @@ function handleSystemPartialApprove_(user, payload) {
   if (!result.found) return errorOut_('Request ' + reqNo + ' not found.');
   // The web page sends deferNotify and asks for the email separately (notifyDecision) so the Admin does not wait
   if (result.updated && result.sender && !payload.deferNotify) sendDetailedNotificationEmail(reqNo, result.sender);
+  return jsonOut_({ status: 'success', updated: result.updated });
+}
+
+function handleManualApprove_(user, payload) {
+  var reqNo = str_(payload.reqNo);
+  if (!reqNo) return errorOut_('Request number is missing.');
+
+  var result = withLock_(function () {
+    var sheet = getApprovalSheet_();
+    var data = sheet.getDataRange().getValues();
+    var changes = [];
+    var found = false;
+    var sender = '';
+    var approver = '';
+    for (var k = 1; k < data.length; k++) {
+      if (str_(data[k][COL.REQ_NO]) !== reqNo) continue;
+      if (!found) sender = data[k][COL.SENDER];
+      found = true;
+      if (isManualPending_(data[k][COL.STATUS])) {
+        changes.push({ rowIndex: k, status: 'Completed' });
+        if (!approver) approver = str_(data[k][COL.APPROVER]);
+      }
+    }
+    if (!found) return { error: 'Request ' + reqNo + ' not found.' };
+    if (!canAccess_(user, sender)) return { error: 'You do not have permission to change this request.' };
+    if (changes.length === 0) return { error: 'This request is not waiting for manual approval. Please print it for approval first.' };
+    applyDecisions_(sheet, changes, approver || DEFAULT_APPROVER, new Date());
+    return { updated: changes.length, sender: sender };
+  });
+
+  if (result.error) return errorOut_(result.error);
+  if (result.sender) sendDetailedNotificationEmail(reqNo, result.sender);
   return jsonOut_({ status: 'success', updated: result.updated });
 }
 

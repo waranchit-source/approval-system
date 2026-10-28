@@ -22,6 +22,8 @@ function doPost(e) {
     if (action === 'resendRequest') return handleBatchSend_(user, [payload.reqNo]);
     if (action === 'systemPartialApprove') return handleSystemPartialApprove_(user, payload);
     if (action === 'notifyDecision') return handleNotifyDecision_(user, payload);
+    if (action === 'printBatchRequest') return handlePrintBatch_(user, payload.reqNos);
+    if (action === 'manualApprove') return handleManualApprove_(user, payload);
 
     return errorOut_('Unknown action.');
   } catch (err) {
@@ -73,6 +75,7 @@ function handleSubmitRequest_(user, data) {
   var approver = str_(data.approverEmail);
   var docType = str_(data.docType) || 'Payment Voucher';
   var editReqNo = str_(data.editReqNo);
+  var submitKey = str_(data.submitId) ? 'submit|' + str_(data.submitId).slice(0, 100) : '';
 
   if (items.length === 0) return errorOut_('Please add at least one item.');
   if (!requestorName) return errorOut_('Please select or type the Requestor Name.');
@@ -102,9 +105,23 @@ function handleSubmitRequest_(user, data) {
     var rowsToDelete = [];
     var sender = user.name;
     var reqDate = new Date();
+    var cache = submitKey ? CacheService.getScriptCache() : null;
+    var targetReqNo = editReqNo;
 
-    if (editReqNo) {
-      reqNo = editReqNo;
+    if (!targetReqNo && cache) {
+      var savedReqNo = str_(cache.get(submitKey));
+      if (savedReqNo) {
+        for (var s = 1; s < all.length; s++) {
+          if (str_(all[s][COL.REQ_NO]) === savedReqNo) {
+            targetReqNo = savedReqNo;
+            break;
+          }
+        }
+      }
+    }
+
+    if (targetReqNo) {
+      reqNo = targetReqNo;
       var allCompleted = true;
       for (var r = 1; r < all.length; r++) {
         if (str_(all[r][COL.REQ_NO]) === reqNo) {
@@ -166,7 +183,8 @@ function handleSubmitRequest_(user, data) {
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, NUM_COLS).setValues(rows);
     // When editing, remove the old rows only after the new ones are written
     // (Sheets refuses to delete every non-frozen row, and nothing is lost if writing fails)
-    for (var d = rowsToDelete.length - 1; d >= 0; d--) sheet.deleteRow(rowsToDelete[d]);
+    if (rowsToDelete.length > 0) deleteRowNumbers_(sheet, rowsToDelete);
+    if (cache) cache.put(submitKey, reqNo, SUBMIT_CACHE_SECONDS);
     return jsonOut_({ status: 'success', reqNo: reqNo });
   });
 }
