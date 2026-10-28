@@ -1626,6 +1626,10 @@ async function handleBatchPrint() {
 function buildApprovalPrintHtml(requests) {
     const rows = [];
     const printedReqNos = [];
+    const requestorNames = [];
+    const senders = [];
+    const requestDates = [];
+    const approvers = [];
     let grandTotal = 0;
 
     requests.forEach(req => {
@@ -1633,6 +1637,11 @@ function buildApprovalPrintHtml(requests) {
         if (validItems.length === 0) return;
         const reqNo = toText(req.reqNo);
         printedReqNos.push(reqNo);
+        requestorNames.push(req.requestorName);
+        senders.push(req.requestor);
+        approvers.push(req.approver);
+        const isoDate = toInputDate(req.date);
+        if (isoDate) requestDates.push(isoDate);
         validItems.forEach(item => {
             grandTotal += toNumber(item.total);
             rows.push({ reqNo: reqNo, item: item });
@@ -1660,6 +1669,10 @@ function buildApprovalPrintHtml(requests) {
     }).join('');
 
     const docTitle = ('Approval_' + printedReqNos.join('_')).slice(0, 120);
+    const joinOrDash = list => uniqueStrings(list).join(', ') || '-';
+    const sortedDates = uniqueStrings(requestDates).sort();
+    const dateText = sortedDates.length === 0 ? '-' :
+        (sortedDates.length === 1 ? formatDisplayDate(sortedDates[0]) : formatDisplayDate(sortedDates[0]) + ' – ' + formatDisplayDate(sortedDates[sortedDates.length - 1]));
 
     return '<!DOCTYPE html>' +
         '<html><head><meta charset="UTF-8"><title>' + escapeHtml(docTitle) + '</title>' +
@@ -1673,6 +1686,13 @@ function buildApprovalPrintHtml(requests) {
             '.head .refs { margin: 3px 0 0; font-size: 11px; color: #475569; }' +
             '.meta { display: flex; gap: 18px; font-size: 11px; color: #475569; white-space: nowrap; }' +
             '.meta b { color: #0F172A; margin-left: 4px; }' +
+            '.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }' +
+            '.details-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 9px 12px; }' +
+            '.details-box p { margin: 0 0 4px 0; font-size: 11px; display: flex; gap: 6px; }' +
+            '.details-box p:last-child { margin: 0; }' +
+            '.details-box .lbl { color: #64748B; flex: 0 0 100px; }' +
+            '.details-box strong { color: #0F172A; }' +
+            '.status-badge { display: inline-block; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 10px; background: #FEF3C7; color: #92400E; }' +
             'table { width: 100%; border-collapse: collapse; font-size: 11px; }' +
             'th { background: #EFF6FF; color: #1E3A8A; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; text-align: left; padding: 6px; border: 1px solid #BFDBFE; }' +
             'td { padding: 5px 6px; border: 1px solid #E2E8F0; vertical-align: top; line-height: 1.35; }' +
@@ -1702,6 +1722,17 @@ function buildApprovalPrintHtml(requests) {
                         '<span>Printed<b>' + escapeHtml(formatDisplayDate(new Date())) + '</b></span>' +
                         '<span>Requests<b>' + printedReqNos.length + '</b></span>' +
                         '<span>Items<b>' + rows.length + '</b></span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="details-grid">' +
+                    '<div class="details-box">' +
+                        '<p><span class="lbl">Requestor Name:</span><strong>' + escapeHtml(joinOrDash(requestorNames)) + '</strong></p>' +
+                        '<p><span class="lbl">Senders:</span><strong>' + escapeHtml(joinOrDash(senders)) + '</strong></p>' +
+                        '<p><span class="lbl">Date:</span><strong>' + escapeHtml(dateText) + '</strong></p>' +
+                    '</div>' +
+                    '<div class="details-box">' +
+                        '<p><span class="lbl">Overall Status:</span><span class="status-badge">Print PDF for Approval</span></p>' +
+                        '<p><span class="lbl">Approved By:</span><strong>' + escapeHtml(joinOrDash(approvers)) + '</strong></p>' +
                     '</div>' +
                 '</div>' +
                 '<table>' +
@@ -1738,10 +1769,11 @@ function buildApprovalPrintHtml(requests) {
                     'var mm = 96 / 25.4;' +
                     'var maxHeight = 186 * mm;' +
                     'var fullWidth = 277 * mm;' +
-                    'for (var i = 0; i < 4; i++) {' +
-                        'var height = sheet.getBoundingClientRect().height / (parseFloat(sheet.style.zoom) || 1);' +
-                        'if (height <= maxHeight) break;' +
-                        'var zoom = Math.max(0.35, maxHeight / height);' +
+                    'var zoom = 1;' +
+                    'for (var i = 0; i < 8; i++) {' +
+                        'var rendered = sheet.getBoundingClientRect().height;' +
+                        'if (rendered <= maxHeight) break;' +
+                        'zoom = Math.max(0.3, zoom * (maxHeight / rendered) * 0.98);' +
                         'sheet.style.zoom = zoom.toFixed(3);' +
                         'sheet.style.width = (fullWidth / zoom).toFixed(1) + "px";' +
                     '}' +
