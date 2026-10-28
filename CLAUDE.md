@@ -13,7 +13,8 @@
   (cells carry `data-label`). Messages use `showToast()`; confirmations still use `confirm()`.
   Batch "Print PDF for Approval" prints from a hidden iframe (`printHtmlInFrame`), not a pop-up window; the document is ONE
   A4 landscape page (#, Ref No., Description, Supplier, INV, Branch, Bank, Account No., Amount, grand total, one Approver box);
-  an inline script shrinks it with CSS zoom to fit one page.
+  an inline script shrinks it with CSS zoom to fit one page (minimum zoom 0.3, ~70-90 items max), and a details box on top
+  (Requestor Name, Senders, Date or date range, Overall Status = "Print PDF for Approval", Approved By = approver group).
   Every select in the request form is wrapped by `enhanceSelect()` (type-to-filter list; the real <select> stays hidden for
   values/validation; its `value` setter is patched so programmatic changes update the visible text).
   Admin-only "Activity Log" page (`.admin-only` nav, `fetchActivityLog`/`renderActivityLog`).
@@ -58,3 +59,5 @@ Every action is written to sheet "Activity Log" via `logActivity_` (failures nev
   busting and switched batch printing to a hidden iframe. Full UI/UX redesign (all element IDs kept).
 - 2026-10-28 (3): one-page landscape approval PDF with chosen columns, searchable dropdowns in the request form,
   white + blue theme, Admin Activity Log, speed (caches, prefetch, fewer round trips, deferred notification email).
+- 2026-10-28 (4): batch PDF details box restored on top (Overall Status shows "Print PDF for Approval"); fixed the
+  fit-to-one-page loop (it compared the un-zoomed height, so long documents could spill onto page 2).
